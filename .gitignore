@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Test / Dev caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# Envs
+.venv/
+venv/
+env/
+.env
+.env.*
+
+# sky-v1 local data
+checkpoints/
+data/
+logs/
+*.log
+*.sqlite
+.chroma/
+chroma_data/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 追加：排除所有 __pycache__
+**/__pycache__/

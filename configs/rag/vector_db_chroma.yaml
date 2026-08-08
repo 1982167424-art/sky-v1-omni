@@ -1,0 +1,20 @@
+vector_db:
+  backend: chroma
+  persist_directory: "./chroma_data"
+  collection_name: "sky_v1_knowledge"
+
+ingestion:
+  chunk_size: 512
+  chunk_overlap: 64
+  separator: "\n\n"
+
+retrieval:
+  top_k: 5
+  expand_k_multiplier: 2
+  rerank_threshold: 0.95
+  use_hyde: true
+
+embedding:
+  provider: "simulated"
+  dimension: 64
+  bge_model_name: "BAAI/bge-m3"

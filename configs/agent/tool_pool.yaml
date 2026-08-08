@@ -1,0 +1,48 @@
+tools:
+  tool_chat:
+    enabled: true
+    provider: "simulated"
+    api_key_env: "SKYV1_CHAT_API_KEY"
+    model_name: "qwen-3.8-turbo"
+  tool_code:
+    enabled: true
+    provider: "simulated"
+    sandbox: "local_pyodide"
+    timeout_s: 30
+  tool_rag:
+    enabled: true
+    use_local_kb: true
+    top_k: 5
+  tool_image_understand:
+    enabled: true
+    provider: "simulated"
+    api_key_env: "SKYV1_VISION_API_KEY"
+  tool_image_generate:
+    enabled: true
+    provider: "simulated"
+    api_key_env: "SKYV1_IMAGE_API_KEY"
+    default_size: "1024x1024"
+  tool_asr:
+    enabled: true
+    provider: "simulated"
+  tool_tts:
+    enabled: true
+    provider: "simulated"
+    default_voice: "female_zh_cn"
+  tool_video_understand:
+    enabled: true
+    provider: "simulated"
+  tool_video_generate:
+    enabled: true
+    provider: "simulated"
+    default_duration_s: 5
+  tool_3d_pointcloud:
+    enabled: true
+    provider: "simulated"
+  tool_3d_mesh:
+    enabled: true
+    provider: "simulated"
+    default_format: "glb"
+  tool_3d_nerf:
+    enabled: true
+    provider: "simulated"

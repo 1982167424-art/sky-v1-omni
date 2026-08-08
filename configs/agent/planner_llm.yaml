@@ -1,0 +1,16 @@
+planner:
+  mode: "heuristic"
+  fallback_to_heuristic: true
+
+llm:
+  provider: "simulated"
+  endpoint: ""
+  api_key_env: "SKYV1_PLANNER_API_KEY"
+  model_name: "qwen-3.8-turbo"
+  temperature: 0.3
+  max_tokens: 4096
+
+agent_limits:
+  max_tool_calls_per_step: 3
+  max_reflect_rounds: 1
+  short_term_memory_turns: 20
