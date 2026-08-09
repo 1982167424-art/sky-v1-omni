@@ -77,9 +77,9 @@ export const PROVIDER_META: ProviderMeta[] = [
     defaultBaseUrl: 'https://open.bigmodel.cn/api/paas/v4',
     docsUrl: 'https://open.bigmodel.cn/dev/api',
     modelLabel: '模型 ID',
-    modelPlaceholder: '例如 glm-4-plus / glm-4-air',
+    modelPlaceholder: '例如 glm-4.6 / glm-4.5-flash / glm-4-plus',
     supportsStreaming: true,
-    defaultModel: 'glm-4-plus'
+    defaultModel: 'glm-4.6'
   },
   {
     id: 'moonshot',
@@ -88,9 +88,9 @@ export const PROVIDER_META: ProviderMeta[] = [
     defaultBaseUrl: 'https://api.moonshot.cn/v1',
     docsUrl: 'https://platform.moonshot.cn/docs',
     modelLabel: '模型 ID',
-    modelPlaceholder: '例如 moonshot-v1-8k / moonshot-v1-128k',
+    modelPlaceholder: '例如 kimi-k2-0905 / moonshot-v1-128k / moonshot-v1-8k',
     supportsStreaming: true,
-    defaultModel: 'moonshot-v1-8k'
+    defaultModel: 'kimi-k2-0905'
   },
   {
     id: 'deepseek',
@@ -113,6 +113,61 @@ export const PROVIDER_META: ProviderMeta[] = [
     modelPlaceholder: '例如 moonshotai/kimi-k2.6 / deepseek-ai/deepseek-r1',
     supportsStreaming: true,
     defaultModel: 'moonshotai/kimi-k2.6'
+  },
+  {
+    id: 'mimo',
+    name: '小米 MiMo',
+    brandColor: '#FF7043',
+    defaultBaseUrl: 'https://api.xiaomimimo.com/v1',
+    docsUrl: 'https://platform.xiaomimimo.com/docs/zh-CN',
+    modelLabel: '模型 ID',
+    modelPlaceholder: '例如 mimo-v2.5-pro / mimo-v2-flash',
+    supportsStreaming: true,
+    defaultModel: 'mimo-v2.5-pro'
+  },
+  {
+    id: 'longcat',
+    name: '美团 LongCat (龙猫)',
+    brandColor: '#FFD100',
+    defaultBaseUrl: 'https://api.longcat.chat/openai/v1',
+    docsUrl: 'https://longcat.chat/platform/docs/zh',
+    modelLabel: '模型 ID',
+    modelPlaceholder: '例如 LongCat-Flash-Chat / LongCat-Flash-Thinking',
+    supportsStreaming: true,
+    defaultModel: 'LongCat-Flash-Chat'
+  },
+  {
+    id: 'anthropic',
+    name: 'Anthropic Claude',
+    brandColor: '#D97757',
+    defaultBaseUrl: 'https://api.anthropic.com/v1',
+    docsUrl: 'https://docs.anthropic.com/en/api',
+    modelLabel: '模型 ID',
+    modelPlaceholder: '例如 claude-sonnet-4-5-20250929 / claude-opus-4-1 / claude-3-5-haiku-20241022',
+    supportsStreaming: true,
+    defaultModel: 'claude-sonnet-4-5-20250929'
+  },
+  {
+    id: 'google',
+    name: 'Google Gemini',
+    brandColor: '#4285F4',
+    defaultBaseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+    docsUrl: 'https://ai.google.dev/gemini-api/docs/openai',
+    modelLabel: '模型 ID',
+    modelPlaceholder: '例如 gemini-2.5-pro / gemini-2.5-flash / gemini-2.0-flash',
+    supportsStreaming: true,
+    defaultModel: 'gemini-2.5-flash'
+  },
+  {
+    id: 'openai',
+    name: 'OpenAI (GPT)',
+    brandColor: '#10a37f',
+    defaultBaseUrl: 'https://api.openai.com/v1',
+    docsUrl: 'https://platform.openai.com/docs',
+    modelLabel: '模型 ID',
+    modelPlaceholder: '例如 gpt-5 / gpt-4o / o3 / gpt-4o-mini',
+    supportsStreaming: true,
+    defaultModel: 'gpt-5'
   },
   {
     id: 'openai-compatible',
@@ -227,12 +282,17 @@ async function chatCompletions(
   }
 
   try {
+    // 部分厂商（如 Anthropic）的 OpenAI 兼容端点需要额外 header
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${cfg.apiKey}`
+    }
+    if (cfg.id === 'anthropic') {
+      headers['anthropic-version'] = '2023-06-01'
+    }
     const resp = await fetch(url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${cfg.apiKey}`
-      },
+      headers,
       body: JSON.stringify(body),
       signal: opts?.signal
     })
