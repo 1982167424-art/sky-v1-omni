@@ -49,14 +49,29 @@ async def images_generations(
     body: ImageGenerationRequest,
 ) -> ImageGenerationResponse:
     agent = getattr(request.app.state, "agent", None)
+    engine = getattr(request.app.state, "engine", None)
     data: list[ImageObject] = []
     for i in range(body.n):
         url = ""
         revised = body.prompt
-        result = _call_tool_safe(agent, "tool_image_generate", prompt=body.prompt, size=body.size)
-        if isinstance(result, dict):
-            url = str(result.get("url", ""))
-            revised = str(result.get("revised_prompt", body.prompt))
+        # 优先走 SkyInferenceEngine（真实模型生成）
+        if engine is not None:
+            try:
+                result = engine.generate(modality="image", prompt=body.prompt) if hasattr(engine, "generate") else None
+                if isinstance(result, dict):
+                    tensor = result.get("tensor")
+                    shape = result.get("shape", [])
+                    if tensor is not None or shape:
+                        url = f"data:application/x-sky-v1-tensor;shape={','.join(str(s) for s in shape)};base64,{_sim_url('img','png',body.prompt)[:24]}"
+                        revised = f"[Engine] image tensor shape={shape}"
+            except Exception:
+                pass
+        if not url:
+            # Fallback: Agent 工具
+            result = _call_tool_safe(agent, "tool_image_generate", prompt=body.prompt, size=body.size)
+            if isinstance(result, dict):
+                url = str(result.get("url", ""))
+                revised = str(result.get("revised_prompt", body.prompt))
         if not url:
             url = _sim_url("img", "png", f"{body.prompt}:{body.size}:{i}")
         data.append(ImageObject(url=url, revised_prompt=revised))

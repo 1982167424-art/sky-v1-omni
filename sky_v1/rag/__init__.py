@@ -7,12 +7,12 @@ from .vector_store import VectorStore, ChromaStore, InMemoryStore
 from .embedding import EmbeddingModel, SimEmbeddingFallback, BGEOnnxEmbedding
 from .ingestion import Document, chunk_text, ingest_documents
 from .retrieval import hyde_rewrite, Reranker, retrieve_top_k
-from .knowledge_base import KnowledgeBase
+from .knowledge_base import KnowledgeBase, SkyKnowledgeBase
 
 __all__ = [
     "VectorStore", "ChromaStore", "InMemoryStore",
     "EmbeddingModel", "SimEmbeddingFallback", "BGEOnnxEmbedding",
     "Document", "chunk_text", "ingest_documents",
     "hyde_rewrite", "Reranker", "retrieve_top_k",
-    "KnowledgeBase",
+    "KnowledgeBase", "SkyKnowledgeBase",
 ]

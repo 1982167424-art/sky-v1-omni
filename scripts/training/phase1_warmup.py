@@ -46,6 +46,7 @@ def main() -> int:
                 break
             loss, metrics = trainer.step(batch)
             losses.append(float(loss))
+            metrics.pop("step", None)  # trainer 已在 metrics 写入 step，避免与显式 step 冲突
             logger.log(step=step, loss=float(loss), **metrics)
             if step % 1 == 0:
                 print(f"[Phase1] step={step} loss={float(loss):.4f}")

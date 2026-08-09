@@ -127,3 +127,25 @@ class KnowledgeBase:
         if not isinstance(ids, list):
             raise ValueError("ids 必须是 list[str]")
         self._store.delete(ids)
+
+    def ingest_file(self, path: Path | str) -> dict:
+        """摄入单个文件。"""
+        p = Path(path) if not isinstance(path, Path) else path
+        if not p.exists():
+            raise FileNotFoundError(f"文件不存在: {p}")
+        text = p.read_text(encoding="utf-8", errors="replace")
+        doc = Document(
+            id=f"file_{p.stem}_{hash(str(p)) & 0xFFFFFF:x}",
+            text=text,
+            metadata={"category": "user_file", "title": p.name, "path": str(p)},
+            category="user_file",
+        )
+        return self.ingest_documents([doc])
+
+    def search(self, query: str, k: int = 5) -> list[dict]:
+        """query 的别名，兼容 CLI/SDK 调用。"""
+        return self.query(query, top_k=k)
+
+
+# 别名：兼容顶层 __init__ 和 CLI 中使用的 SkyKnowledgeBase 名称
+SkyKnowledgeBase = KnowledgeBase

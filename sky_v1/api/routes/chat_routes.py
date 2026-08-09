@@ -65,26 +65,42 @@ async def chat_completions(
     finish_reason: str = "stop"
     answer_text: str = ""
 
-    agent = getattr(request.app.state, "agent", None)
-    if agent is not None:
+    # 优先走 SkyInferenceEngine（当 engine 已配置且 model 以 sky-v1- 开头时）
+    engine = getattr(request.app.state, "engine", None)
+    model_name = (body.model or "").lower()
+    if engine is not None and model_name.startswith("sky-v1-"):
         try:
-            if hasattr(agent, "step"):
-                step_result = agent.step(
-                    user_message=prompt_text,
-                    session_id=body.user or "default",
-                )
-                if isinstance(step_result, dict):
-                    answer_text = str(step_result.get("answer", "")) or _sim_answer(prompt_text)
-                else:
-                    answer_text = str(step_result) or _sim_answer(prompt_text)
-            else:
-                answer_text = _sim_answer(prompt_text)
+            msgs = [{"role": m.role, "content": prompt_text if m.role == "user" else str(m.content)} for m in body.messages]
+            max_new = getattr(body, "max_tokens", None) or 64
+            temp = getattr(body, "temperature", None) or 0.7
+            result = engine.chat(msgs, max_new_tokens=int(max_new), temperature=float(temp))
+            answer_text = str(result.get("text", "")) or _sim_answer(prompt_text)
+            finish_reason = "stop" if result.get("done", True) else "length"
         except Exception as e:
             finish_reason = "error"
-            answer_text = f"Agent执行失败：{str(e)[:200]}"
+            answer_text = f"[Engine] 推理失败：{str(e)[:200]}"
     else:
-        finish_reason = "error"
-        answer_text = "SkyAgent未配置，请检查依赖安装。"
+        # Fallback: Agent 模式
+        agent = getattr(request.app.state, "agent", None)
+        if agent is not None:
+            try:
+                if hasattr(agent, "step"):
+                    step_result = agent.step(
+                        user_message=prompt_text,
+                        session_id=body.user or "default",
+                    )
+                    if isinstance(step_result, dict):
+                        answer_text = str(step_result.get("answer", "")) or _sim_answer(prompt_text)
+                    else:
+                        answer_text = str(step_result) or _sim_answer(prompt_text)
+                else:
+                    answer_text = _sim_answer(prompt_text)
+            except Exception as e:
+                finish_reason = "error"
+                answer_text = f"Agent执行失败：{str(e)[:200]}"
+        else:
+            finish_reason = "error"
+            answer_text = "SkyAgent未配置，请检查依赖安装。"
 
     usage = ChatCompletionUsage(
         prompt_tokens=len(prompt_text) // 4,
@@ -112,7 +128,27 @@ async def text_completions(
 ) -> TextCompletionResponse:
     resp_id = f"cmpl-{uuid.uuid4().hex[:24]}"
     prompt_str = body.prompt if isinstance(body.prompt, str) else "\n".join(body.prompt)
-    completion_text = f"[SIM Completion]\n{prompt_str[:80]}"
+
+    engine = getattr(request.app.state, "engine", None)
+    model_name = (body.model or "").lower()
+    completion_text = ""
+    if engine is not None and model_name.startswith("sky-v1-"):
+        try:
+            import torch  # type: ignore
+            vocab = engine.config.vocab_size
+            ids = [1] + [(abs(hash(ch)) % (vocab - 4)) + 3 for ch in prompt_str[:128]]
+            prompt_ids = torch.tensor([ids], dtype=torch.long)
+            max_new = getattr(body, "max_tokens", None) or 32
+            temp = getattr(body, "temperature", None) or 0.7
+            gen = engine.generate_text(prompt_ids, max_new_tokens=int(max_new), temperature=float(temp))
+            inv = {i: ch for i, ch in zip(ids, prompt_str)}
+            out_chars = [inv.get(t, "") if t in inv else "" for t in gen.token_ids[0].tolist()]
+            completion_text = "".join(out_chars).strip() or f"[Engine] generated {gen.token_ids.shape[1]} tokens"
+        except Exception as e:
+            completion_text = f"[Engine] 补全失败：{str(e)[:200]}"
+    else:
+        completion_text = f"[SIM Completion]\n{prompt_str[:80]}"
+
     choice = TextCompletionChoice(
         index=0,
         text=completion_text,

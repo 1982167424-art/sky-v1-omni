@@ -5,8 +5,10 @@ from .dpo import dpo_loss
 from .checkpoint import CheckpointManager
 from .callbacks import MetricsLogger
 from .trainer import SkyTrainer
+from .teacher_client import TeacherAPIClient, Qwen72BLocalTeacher, DistillSetBuilder
 __all__ = [
     "KD3LayerLoss","InfoNCELoss","ReconMSELoss",
     "TeacherPool","masked_sft_cross_entropy","dpo_loss",
     "CheckpointManager","MetricsLogger","SkyTrainer",
+    "TeacherAPIClient","Qwen72BLocalTeacher","DistillSetBuilder",
 ]

@@ -41,6 +41,7 @@ def main() -> int:
                 break
             loss, m = trainer.step(batch)
             losses.append(float(loss))
+            m.pop("step", None)  # trainer 已在 metrics 写入 step，避免与显式 step 冲突
             logger.log(step=step, loss=float(loss), **m)
             print(f"[Phase3] step={step} loss={float(loss):.4f} metrics={ {k:v for k,v in m.items() if isinstance(v, (int,float))} }")
             ckpt.on_step_end(step, model, trainer.optimizer, float(loss))

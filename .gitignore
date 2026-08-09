@@ -24,9 +24,9 @@ env/
 .env
 .env.*
 
-# sky-v1 local data
+# sky-v1 local data (仅忽略仓库根目录下的数据产物，不影响 sky_v1/data 与 scripts/data 源码)
 checkpoints/
-data/
+/data/
 logs/
 *.log
 *.sqlite

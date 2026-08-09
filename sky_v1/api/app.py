@@ -41,6 +41,8 @@ def create_app(
     config_dir: str | Path = "./configs",
     rag_kb: Any | None = None,
     agent: Any | None = None,
+    engine: Any | None = None,
+    enable_engine: bool = False,
 ) -> FastAPI:
     app = FastAPI(
         title="sky-v1-omni API",
@@ -84,8 +86,27 @@ def create_app(
         except Exception:
             agent = None
 
+    # 推理引擎：当 enable_engine=True 或 engine 已传入时启用
+    # 启用后，model 字段以 "sky-v1-" 开头的请求会走 SkyInferenceEngine
+    if engine is None and enable_engine:
+        try:
+            from sky_v1.inference.engine import SkyInferenceEngine  # type: ignore
+            from sky_v1.model.config import SkyModelConfig, ModalConfig, HeadsConfig  # type: ignore
+
+            _mini_cfg = SkyModelConfig(
+                model_name="sky-v1-api-mini", hidden_dim=64, num_layers=2,
+                num_heads=2, ffn_dim=128, max_seq_len=256, vocab_size=512,
+                image_vocab_size=0, audio_vocab_size=0, video_vocab_size=0,
+                three_d_vocab_size=0, modal=ModalConfig(), heads=HeadsConfig(),
+                eos_token_id=2,
+            )
+            engine = SkyInferenceEngine(_mini_cfg, device="cpu", dtype="fp32")
+        except Exception:
+            engine = None
+
     app.state.rag_kb = rag_kb
     app.state.agent = agent
+    app.state.engine = engine
     app.state.stats = {"req": 0, "errors": 0, "lat_sum": 0.0}
 
     try:
