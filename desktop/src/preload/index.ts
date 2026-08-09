@@ -58,6 +58,64 @@ export interface RagApi {
   ingest: (filename: string) => Promise<{ ok: boolean; data?: any; error?: string }>
 }
 
+export interface ProviderMeta {
+  id: string
+  name: string
+  brandColor: string
+  defaultBaseUrl: string
+  docsUrl: string
+  modelPlaceholder: string
+  modelLabel: string
+  supportsStreaming: boolean
+  defaultModel?: string
+}
+
+export interface ProviderConfig {
+  id: string
+  apiKey: string
+  baseUrl: string
+  model: string
+  enabled: boolean
+  temperature?: number
+  maxTokens?: number
+}
+
+export interface ProvidersStore {
+  version: 1
+  activeProvider: string
+  providers: Record<string, ProviderConfig>
+}
+
+export interface ChatResult {
+  ok: boolean
+  status: number
+  content: string
+  error?: string
+  providerId?: string
+}
+
+export interface ProvidersApi {
+  listMeta: () => Promise<ProviderMeta[]>
+  getStore: () => Promise<ProvidersStore>
+  update: (
+    providerId: string,
+    patch: Partial<ProviderConfig>
+  ) => Promise<{ ok: boolean; store?: ProvidersStore; error?: string }>
+  setActive: (providerId: string) => Promise<{ ok: boolean; store?: ProvidersStore; error?: string }>
+  removeKey: (providerId: string) => Promise<{ ok: boolean; store?: ProvidersStore; error?: string }>
+  testConnection: (
+    providerId: string
+  ) => Promise<{ ok: boolean; status: number; latencyMs: number; error?: string; sample?: string }>
+  chat: (args: {
+    providerId?: string
+    messages: { role: string; content: string }[]
+    temperature?: number
+    max_tokens?: number
+    stream?: boolean
+  }) => Promise<ChatResult>
+  onChatDelta: (cb: (ev: { providerId: string; delta: string }) => void) => () => void
+}
+
 export interface SkyWindow {
   backend: BackendApi
   app: AppApi
@@ -65,6 +123,7 @@ export interface SkyWindow {
   terminal: TerminalApi
   api: RestApi
   rag: RagApi
+  providers: ProvidersApi
 }
 
 const backend: BackendApi = {
@@ -130,13 +189,29 @@ const rag: RagApi = {
   ingest: (filename: string) => ipcRenderer.invoke('rag:ingest', filename)
 }
 
+const providers: ProvidersApi = {
+  listMeta: () => ipcRenderer.invoke('providers:list-meta'),
+  getStore: () => ipcRenderer.invoke('providers:get-store'),
+  update: (providerId, patch) => ipcRenderer.invoke('providers:update', providerId, patch),
+  setActive: (providerId) => ipcRenderer.invoke('providers:set-active', providerId),
+  removeKey: (providerId) => ipcRenderer.invoke('providers:remove-key', providerId),
+  testConnection: (providerId) => ipcRenderer.invoke('providers:test-connection', providerId),
+  chat: (args) => ipcRenderer.invoke('providers:chat', args),
+  onChatDelta: (cb) => {
+    const listener = (_e: any, ev: any) => cb(ev)
+    ipcRenderer.on('providers:chat:delta', listener)
+    return () => ipcRenderer.removeListener('providers:chat:delta', listener)
+  }
+}
+
 const sky: SkyWindow = {
   backend,
   app: appApi,
   github,
   terminal,
   api,
-  rag
+  rag,
+  providers
 }
 
 contextBridge.exposeInMainWorld('sky', sky)
