@@ -2,6 +2,10 @@ from pathlib import Path
 import subprocess
 import sys
 
+import pytest
+
+pytest.importorskip("torch")  # 脚本通过 subprocess 运行，需要 torch
+
 ROOT = Path(__file__).resolve().parents[2]
 
 def test_toy_overfit_cli_runs_loss_decrease():
