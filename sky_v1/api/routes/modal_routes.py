@@ -20,6 +20,7 @@ from sky_v1.api.types import (
     VideoGenerationResponse,
     VideoObject,
 )
+from sky_v1.agent.base import ToolContext
 
 router = APIRouter()
 
@@ -41,6 +42,15 @@ def _call_tool_safe(agent: Any, tool_name: str, **kwargs) -> Any:
     except Exception:
         return None
     return None
+
+
+def _make_ctx(request: Request) -> ToolContext:
+    """构造带 config 的 ToolContext，供需要 API Key 的工具使用。"""
+    rag_kb = getattr(request.app.state, "rag_kb", None)
+    cfg = getattr(request.app.state, "config", None) or {}
+    session_id = request.headers.get("x-sky-session-id", "api-call")
+    user_id = request.headers.get("x-sky-user-id", "anonymous")
+    return ToolContext(session_id=session_id, user_id=user_id, rag_kb=rag_kb, config=cfg)
 
 
 @router.post("/images/generations", response_model=ImageGenerationResponse)
@@ -83,20 +93,25 @@ async def audio_speech(
     request: Request,
     body: AudioSpeechRequest,
 ) -> AudioSpeechResponse:
-    agent = getattr(request.app.state, "agent", None)
+    """TTS：豆包语音合成大模型 2.0（seed-tts-2.0），未配置时回退模拟。"""
     url = ""
     duration_ms = 0
-    result = _call_tool_safe(
-        agent,
-        "tool_tts",
-        text=body.input,
-        voice=body.voice,
-        response_format=body.response_format,
-        speed=body.speed,
-    )
-    if isinstance(result, dict):
-        url = str(result.get("url", ""))
-        duration_ms = int(result.get("duration_ms", 0))
+    try:
+        from sky_v1.agent.tools.audio_tools import TTSTool
+
+        ctx = _make_ctx(request)
+        result = TTSTool().run(
+            ctx,
+            text=body.input,
+            voice=body.voice,
+            response_format=body.response_format,
+            speed=body.speed,
+        )
+        if result.success and result.data:
+            url = str(result.data.get("audio_url", ""))
+            duration_ms = int(result.data.get("duration_ms", 0))
+    except Exception:
+        pass
     if not url:
         url = _sim_url("audio", body.response_format, f"{body.voice}:{body.input}")
         duration_ms = max(100, len(body.input) * 80)
@@ -108,20 +123,25 @@ async def audio_transcriptions(
     request: Request,
     body: AudioTranscriptionRequest,
 ) -> AudioTranscriptionResponse:
-    agent = getattr(request.app.state, "agent", None)
+    """ASR：豆包录音文件识别极速版（volc.bigasr.auc_turbo），未配置时回退模拟。"""
     text = ""
     segments: list[dict[str, Any]] = []
-    result = _call_tool_safe(
-        agent,
-        "tool_asr",
-        file_url=body.file_url,
-        language=body.language,
-    )
-    if isinstance(result, dict):
-        text = str(result.get("text", ""))
-        segs = result.get("segments", [])
-        if isinstance(segs, list):
-            segments = [s if isinstance(s, dict) else {"text": str(s)} for s in segs]
+    try:
+        from sky_v1.agent.tools.audio_tools import ASRTool
+
+        ctx = _make_ctx(request)
+        result = ASRTool().run(
+            ctx,
+            audio_url=body.file_url,
+            language=body.language,
+        )
+        if result.success and result.data:
+            text = str(result.data.get("text", "") or result.output or "")
+            segs = result.data.get("segments", [])
+            if isinstance(segs, list):
+                segments = [s if isinstance(s, dict) else {"text": str(s)} for s in segs]
+    except Exception:
+        pass
     if not text:
         text = f"[SIM ASR] 音频转录结果（基于URL哈希：{body.file_url[-16:]}）"
         segments = [{"start": 0, "end": 3, "text": text}]

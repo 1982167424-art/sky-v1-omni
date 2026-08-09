@@ -10,7 +10,7 @@ interface Step {
 
 export default function ReasoningView() {
   const [question, setQuestion] = useState('')
-  const [maxSteps, setMaxSteps] = useState(8)
+  const [maxSteps, setMaxSteps] = useState(3)
   const [loading, setLoading] = useState(false)
   const [plan, setPlan] = useState<string | null>(null)
   const [steps, setSteps] = useState<Step[]>([])
@@ -31,21 +31,23 @@ export default function ReasoningView() {
     try {
       const res = await window.sky.api.post('/reasoning/deep', {
         question: question.trim(),
-        max_steps: maxSteps
+        max_iterations: maxSteps
       })
       if (res.ok && res.data) {
         const d = res.data
-        setPlan(d.plan || d.reasoning_plan || null)
-        const rawSteps = d.steps || d.reasoning_steps || []
+        // API 返回 plan: list[str]，iterations: list[dict]，final_answer: str
+        const planArr: any[] = Array.isArray(d.plan) ? d.plan : (Array.isArray(d.reasoning_plan) ? d.reasoning_plan : [])
+        setPlan(planArr.length > 0 ? planArr.map((p) => typeof p === 'string' ? p : JSON.stringify(p)).join('\n') : null)
+        const rawSteps: any[] = Array.isArray(d.iterations) ? d.iterations : (Array.isArray(d.steps) ? d.steps : [])
         setSteps(
           rawSteps.map((s: any, i: number) => ({
             id: i,
-            title: s.title || s.step || `Step ${i + 1}`,
-            content: typeof s === 'string' ? s : (s.content || s.thought || s.description || JSON.stringify(s)),
+            title: typeof s === 'string' ? `Iteration ${i + 1}` : (s.title || s.step || s.action || `Iteration ${i + 1}`),
+            content: typeof s === 'string' ? s : (s.content || s.thought || s.description || s.observation || JSON.stringify(s, null, 2)),
             collapsed: false
           }))
         )
-        setAnswer(d.answer || d.final_answer || d.conclusion || null)
+        setAnswer(d.final_answer || d.answer || d.conclusion || null)
       } else {
         throw new Error(res.error || `HTTP ${res.status}`)
       }
@@ -68,8 +70,8 @@ export default function ReasoningView() {
             <span style={{ color: 'var(--fg-secondary)' }}>Max steps: {maxSteps}</span>
             <input
               type="range"
-              min={2}
-              max={20}
+              min={1}
+              max={6}
               value={maxSteps}
               onChange={(e) => setMaxSteps(Number(e.target.value))}
               style={{ width: 120 }}

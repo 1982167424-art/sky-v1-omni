@@ -156,50 +156,92 @@ function ProvidersPanel() {
   const [testResult, setTestResult] = useState<Record<string, { ok: boolean; status: number; latencyMs: number; sample?: string; error?: string } | null>>({})
   const [savedFlash, setSavedFlash] = useState<string | null>(null)
   const [showKey, setShowKey] = useState<Record<string, boolean>>({})
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  // 本地 draft 状态：允许自由编辑，失焦时才保存到主进程（H2 修复）
+  const [draft, setDraft] = useState<Record<string, Partial<ProviderConfig>>>({})
 
   const load = async () => {
     setLoading(true)
+    setErrorMsg(null)
     try {
       const [m, s] = await Promise.all([window.sky.providers.listMeta(), window.sky.providers.getStore()])
       setMeta(m)
       setStore(s)
-      setSelected(s.activeProvider || m[0]?.id || selected)
+      setSelected(s.activeProvider || m[0]?.id || 'volcengine')
+    } catch (e: any) {
+      setErrorMsg(e.message || String(e))
     } finally { setLoading(false) }
   }
   useEffect(() => { load() }, [])
 
   const currentMeta = meta.find((m) => m.id === selected)
   const currentCfg: ProviderConfig | undefined = store?.providers?.[selected]
+  const draftCfg = draft[selected]
+  // 优先用 draft（用户正在编辑的值），否则用 store（可能带掩码）
+  const apiKeyVal = draftCfg?.apiKey ?? currentCfg?.apiKey ?? ''
+  const modelVal = draftCfg?.model ?? currentCfg?.model ?? ''
+  const baseUrlVal = draftCfg?.baseUrl ?? currentCfg?.baseUrl ?? currentMeta?.defaultBaseUrl ?? ''
+  const tempVal = draftCfg?.temperature ?? currentCfg?.temperature ?? 0.7
+  const maxTokensVal = draftCfg?.maxTokens ?? currentCfg?.maxTokens ?? 2048
 
-  const save = async (patch: Partial<ProviderConfig>) => {
+  const updateDraft = (field: keyof ProviderConfig, value: any) => {
+    setDraft((prev) => ({ ...prev, [selected]: { ...prev[selected], [field]: value } }))
+  }
+
+  const saveField = async (field: keyof ProviderConfig, value: any) => {
     if (!currentCfg) return
     setSaving(true)
+    setErrorMsg(null)
     try {
-      const r = await window.sky.providers.update(selected, patch)
+      const r = await window.sky.providers.update(selected, { [field]: value, enabled: true } as any)
       if (r.ok && r.store) {
         setStore(r.store)
         setSavedFlash(`✓ 已保存「${currentMeta?.name}」配置`)
         setTimeout(() => setSavedFlash(null), 1500)
+      } else {
+        setErrorMsg(r.error || '保存失败')
       }
+    } catch (e: any) {
+      setErrorMsg(e.message || String(e))
     } finally { setSaving(false) }
   }
 
   const activate = async () => {
-    const r = await window.sky.providers.setActive(selected)
-    if (r.ok && r.store) setStore(r.store)
+    setErrorMsg(null)
+    try {
+      const r = await window.sky.providers.setActive(selected)
+      if (r.ok && r.store) setStore(r.store)
+      else setErrorMsg(r.error || '设为默认失败')
+    } catch (e: any) {
+      setErrorMsg(e.message || String(e))
+    }
   }
 
   const removeKey = async () => {
-    const r = await window.sky.providers.removeKey(selected)
-    if (r.ok && r.store) setStore(r.store)
+    setErrorMsg(null)
+    try {
+      const r = await window.sky.providers.removeKey(selected)
+      if (r.ok && r.store) {
+        setStore(r.store)
+        setDraft((prev) => ({ ...prev, [selected]: { ...prev[selected], apiKey: '' } }))
+      } else setErrorMsg(r.error || '清除失败')
+    } catch (e: any) {
+      setErrorMsg(e.message || String(e))
+    }
   }
 
   const test = async () => {
     setTesting(selected)
     setTestResult((s) => ({ ...s, [selected]: null }))
-    const r = await window.sky.providers.testConnection(selected)
-    setTestResult((s) => ({ ...s, [selected]: r as any }))
-    setTesting(null)
+    setErrorMsg(null)
+    try {
+      const r = await window.sky.providers.testConnection(selected)
+      setTestResult((s) => ({ ...s, [selected]: r as any }))
+    } catch (e: any) {
+      setErrorMsg(e.message || String(e))
+    } finally {
+      setTesting(null)
+    }
   }
 
   if (loading) {
@@ -222,7 +264,7 @@ function ProvidersPanel() {
             return (
               <div
                 key={m.id}
-                onClick={() => setSelected(m.id)}
+                onClick={() => { setSelected(m.id); setDraft({}) }}
                 style={{
                   padding: '10px 14px',
                   display: 'flex',
@@ -306,22 +348,23 @@ function ProvidersPanel() {
                 }>
                   <input
                     type={showKey[currentMeta.id] ? 'text' : 'password'}
-                    value={currentCfg.apiKey}
-                    onChange={(e) => save({ apiKey: e.target.value })}
-                    onBlur={() => {}}
+                    value={apiKeyVal}
+                    onChange={(e) => updateDraft('apiKey', e.target.value)}
+                    onBlur={(e) => saveField('apiKey', e.target.value)}
                     placeholder={`请粘贴 ${currentMeta.name} 的 API Key…`}
                     style={{ width: '100%' }}
                   />
                   <div style={{ fontSize: 11, color: 'var(--fg-secondary)', marginTop: 4 }}>
-                    密钥仅保存在本机 userData/providers.json（0600 权限），绝不打印到日志。
+                    密钥仅保存在本机 userData/providers.json（0600 权限），绝不打印到日志。输入完毕失焦后自动保存。
                   </div>
                 </Field>
 
                 <Field label={currentMeta.modelLabel} required>
                   <input
                     type="text"
-                    value={currentCfg.model}
-                    onChange={(e) => save({ model: e.target.value })}
+                    value={modelVal}
+                    onChange={(e) => updateDraft('model', e.target.value)}
+                    onBlur={(e) => saveField('model', e.target.value)}
                     placeholder={currentMeta.modelPlaceholder}
                     style={{ width: '100%' }}
                   />
@@ -335,8 +378,9 @@ function ProvidersPanel() {
                 <Field label="Base URL（可覆盖）">
                   <input
                     type="text"
-                    value={currentCfg.baseUrl}
-                    onChange={(e) => save({ baseUrl: e.target.value })}
+                    value={baseUrlVal}
+                    onChange={(e) => updateDraft('baseUrl', e.target.value)}
+                    onBlur={(e) => saveField('baseUrl', e.target.value)}
                     placeholder={currentMeta.defaultBaseUrl}
                     style={{ width: '100%' }}
                   />
@@ -346,8 +390,9 @@ function ProvidersPanel() {
                   <input
                     type="number"
                     min={0} max={2} step={0.1}
-                    value={currentCfg.temperature ?? 0.7}
-                    onChange={(e) => save({ temperature: parseFloat(e.target.value) || 0 })}
+                    value={tempVal}
+                    onChange={(e) => updateDraft('temperature', parseFloat(e.target.value) || 0)}
+                    onBlur={(e) => saveField('temperature', parseFloat(e.target.value) || 0)}
                     style={{ width: '100%' }}
                   />
                 </Field>
@@ -356,8 +401,9 @@ function ProvidersPanel() {
                   <input
                     type="number"
                     min={1} max={32768} step={1}
-                    value={currentCfg.maxTokens ?? 2048}
-                    onChange={(e) => save({ maxTokens: Math.max(1, parseInt(e.target.value) || 1) })}
+                    value={maxTokensVal}
+                    onChange={(e) => updateDraft('maxTokens', Math.max(1, parseInt(e.target.value) || 1))}
+                    onBlur={(e) => saveField('maxTokens', Math.max(1, parseInt(e.target.value) || 1))}
                     style={{ width: '100%' }}
                   />
                 </Field>
@@ -401,11 +447,15 @@ function ProvidersPanel() {
               }}>
                 <button
                   onClick={async () => {
-                    // 显式再保存一次（当前 blur 已自动保存，这里兜底）
                     setSaving(true)
-                    const r = await window.sky.providers.update(currentMeta.id, { enabled: true })
-                    if (r.ok && r.store) setStore(r.store)
-                    setSaving(false)
+                    setErrorMsg(null)
+                    try {
+                      const r = await window.sky.providers.update(currentMeta.id, { enabled: true })
+                      if (r.ok && r.store) setStore(r.store)
+                      else setErrorMsg(r.error || '保存失败')
+                    } catch (e: any) {
+                      setErrorMsg(e.message || String(e))
+                    } finally { setSaving(false) }
                   }}
                   disabled={saving}
                   style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 14px' }}
@@ -427,6 +477,13 @@ function ProvidersPanel() {
                   <div style={{ color: 'var(--success)', fontSize: 12 }}>{savedFlash}</div>
                 )}
               </div>
+
+              {/* 错误提示 */}
+              {errorMsg && (
+                <div style={{ marginTop: 14, padding: 10, borderRadius: 4, border: '1px solid var(--error)', background: 'rgba(244,135,113,0.1)', color: 'var(--error)', fontSize: 12 }}>
+                  {errorMsg}
+                </div>
+              )}
 
               {/* 测试结果 */}
               {testResult[currentMeta.id] && (

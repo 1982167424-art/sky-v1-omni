@@ -70,7 +70,13 @@ export default function TerminalView({ embedded }: Props) {
     termRef.current = term
     fitRef.current = fitAddon
 
-    const ro = new ResizeObserver(() => { try { fitAddon.fit() } catch {} })
+    const ro = new ResizeObserver(() => {
+      try {
+        fitAddon.fit()
+        const t = termRef.current
+        if (t) window.sky.terminal.resize(t.cols, t.rows)
+      } catch {}
+    })
     ro.observe(containerRef.current)
 
     const offData = window.sky.terminal.onData((data) => {

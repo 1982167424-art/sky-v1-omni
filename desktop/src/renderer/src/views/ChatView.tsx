@@ -135,6 +135,8 @@ export default function ChatView() {
         }
       }
     } catch (e: any) {
+      // 先把所有 streaming 消息收尾，避免光标永久闪烁（H4 修复）
+      setMessages((prev) => prev.map((m) => m.streaming ? { ...m, streaming: false } : m))
       setMessages((prev) => [
         ...prev,
         {

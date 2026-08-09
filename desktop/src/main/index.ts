@@ -1,5 +1,5 @@
 import { app, BrowserWindow, ipcMain, shell } from 'electron'
-import { spawn, exec, ChildProcess } from 'child_process'
+import { spawn, execFile, ChildProcess } from 'child_process'
 import { createServer } from 'net'
 import * as path from 'path'
 import * as fs from 'fs'
@@ -49,15 +49,15 @@ export const PROVIDER_META: ProviderMeta[] = [
     defaultModel: ''
   },
   {
-    id: 'xiaomi',
-    name: '小米 MiLM',
+    id: 'minimax',
+    name: 'MiniMax (M3)',
     brandColor: '#FF6900',
-    defaultBaseUrl: 'https://api.minimimax.ai/v1',
-    docsUrl: 'https://www.xiaomi.cn/milm',
+    defaultBaseUrl: 'https://api.minimax.io/v1',
+    docsUrl: 'https://platform.minimaxi.com/docs',
     modelLabel: '模型 ID',
-    modelPlaceholder: '例如 minimax-abab6.5s-chat',
+    modelPlaceholder: '例如 MiniMax-M3',
     supportsStreaming: true,
-    defaultModel: 'minimax-abab6.5s-chat'
+    defaultModel: 'MiniMax-M3'
   },
   {
     id: 'dashscope',
@@ -102,6 +102,17 @@ export const PROVIDER_META: ProviderMeta[] = [
     modelPlaceholder: '例如 deepseek-chat / deepseek-reasoner',
     supportsStreaming: true,
     defaultModel: 'deepseek-chat'
+  },
+  {
+    id: 'nvidia',
+    name: 'NVIDIA NIM',
+    brandColor: '#76b900',
+    defaultBaseUrl: 'https://integrate.api.nvidia.com/v1',
+    docsUrl: 'https://docs.api.nvidia.com',
+    modelLabel: '模型 ID',
+    modelPlaceholder: '例如 moonshotai/kimi-k2.6 / deepseek-ai/deepseek-r1',
+    supportsStreaming: true,
+    defaultModel: 'moonshotai/kimi-k2.6'
   },
   {
     id: 'openai-compatible',
@@ -234,7 +245,7 @@ async function chatCompletions(
       return { ok: resp.ok, status: resp.status, content, raw: data, error: resp.ok ? undefined : data?.error?.message || text.slice(0, 300) }
     }
 
-    // ---------- SSE 流式解析 ----------
+    // ---------- SSE 流式解析（兼容 CRLF / LF / CR，处理尾部 buffer，合并多行 data） ----------
     if (!resp.ok || !resp.body) {
       const errText = await resp.text()
       let msg = `HTTP ${resp.status}`
@@ -247,35 +258,46 @@ async function chatCompletions(
     let buffer = ''
     let full = ''
 
+    // 将一个 SSE 事件块解析为 delta 文本
+    function processEventBlock(block: string) {
+      const lines = block.split('\n')
+      const dataLines: string[] = []
+      for (const line of lines) {
+        const s = line.trim()
+        if (!s) continue
+        if (s.startsWith('data:')) {
+          dataLines.push(s.slice(5).trim())
+        }
+      }
+      if (dataLines.length === 0) return
+      const payloadStr = dataLines.join('\n')
+      if (payloadStr === '[DONE]') return
+      try {
+        const json = JSON.parse(payloadStr)
+        const delta = json?.choices?.[0]?.delta?.content
+        if (typeof delta === 'string' && delta) {
+          full += delta
+          opts?.onDelta?.(delta)
+        }
+      } catch {
+        /* ignore malformed chunk */
+      }
+    }
+
     while (true) {
       const { done, value } = await reader.read()
       if (done) break
-      buffer += decoder.decode(value, { stream: true })
+      // 归一化 CRLF -> LF, CR -> LF
+      buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, '\n').replace(/\r/g, '\n')
       let idx: number
       while ((idx = buffer.indexOf('\n\n')) >= 0) {
         const block = buffer.slice(0, idx).trim()
         buffer = buffer.slice(idx + 2)
-        if (!block) continue
-        const lines = block.split('\n')
-        for (const line of lines) {
-          const s = line.trim()
-          if (!s.startsWith('data:')) continue
-          const payloadStr = s.slice(5).trim()
-          if (!payloadStr) continue
-          if (payloadStr === '[DONE]') continue
-          try {
-            const json = JSON.parse(payloadStr)
-            const delta = json?.choices?.[0]?.delta?.content
-            if (typeof delta === 'string' && delta) {
-              full += delta
-              opts?.onDelta?.(delta)
-            }
-          } catch {
-            /* ignore malformed chunk */
-          }
-        }
+        if (block) processEventBlock(block)
       }
     }
+    // 处理尾部残留 buffer
+    if (buffer.trim()) processEventBlock(buffer.trim())
 
     return { ok: true, status: 200, content: full }
   } catch (e: any) {
@@ -342,8 +364,23 @@ function startBackend() {
       }
     )
 
-    backendRunning = true
+    backendRunning = false  // 等健康检查通过后再置 true
     broadcastStatus()
+
+    // 轮询 /health 直到后端就绪
+    const checkReady = async () => {
+      try {
+        const resp = await fetch(`http://127.0.0.1:${port}/health`)
+        if (resp.ok) {
+          backendRunning = true
+          broadcastStatus()
+          appendLog('[backend] Backend ready (health check passed)')
+          return
+        }
+      } catch {}
+      setTimeout(checkReady, 500)
+    }
+    setTimeout(checkReady, 1000)
 
     backendProcess.stdout?.on('data', (data: Buffer) => {
       const lines = data.toString().split('\n')
@@ -372,15 +409,17 @@ function startBackend() {
 }
 
 function stopBackend() {
-  if (backendProcess && !backendProcess.killed) {
+  const proc = backendProcess
+  if (proc && !proc.killed) {
     appendLog('[backend] Stopping backend...')
-    backendProcess.kill('SIGTERM')
+    proc.kill('SIGTERM')
     setTimeout(() => {
-      if (backendProcess && !backendProcess.killed) {
-        backendProcess.kill('SIGKILL')
+      if (proc && !proc.killed) {
+        proc.kill('SIGKILL')
       }
     }, 3000)
   }
+  // 不在此处清 backendProcess/backendRunning，留给 close 事件处理
 }
 
 function restartBackend() {
@@ -417,18 +456,20 @@ function setupIpc() {
 
   ipcMain.handle('github:cli', async (_event, args: string[]) => {
     return new Promise((resolve) => {
-      const cmd = `gh ${args.join(' ')}`
-      exec(cmd, { maxBuffer: 10 * 1024 * 1024 }, (err, stdout, stderr) => {
+      execFile('gh', args, { maxBuffer: 10 * 1024 * 1024 }, (err, stdout, stderr) => {
         resolve({
           stdout: stdout || '',
           stderr: stderr || '',
-          code: err?.code ?? 0
+          code: err ? 1 : 0
         })
       })
     })
   })
 
   ipcMain.handle('api:fetch', async (_event, method: string, urlPath: string, body?: any) => {
+    if (!backendRunning) {
+      return { ok: false, status: 0, data: null, error: 'Backend is not running. Please wait or click Restart.' }
+    }
     try {
       const url = `http://127.0.0.1:${backendPort}/v1${urlPath}`
       const init: RequestInit = {
@@ -620,7 +661,7 @@ function setupIpc() {
       const useStream = args.stream !== false
       const win = BrowserWindow.fromWebContents(event.sender)
       if (!useStream) {
-        const res = await chatCompletions(cfg, args)
+        const res = await chatCompletions(cfg, args, { signal: AbortSignal.timeout(60000) })
         return { ok: res.ok, status: res.status, content: res.content, error: res.error, providerId: pid }
       }
       // 流式：经 SSE 解析后通过事件逐块推送到渲染层，最后同步返回完整结果
@@ -630,6 +671,7 @@ function setupIpc() {
           cfg,
           args,
           {
+            signal: AbortSignal.timeout(120000),
             onDelta: (delta) => {
               acc += delta
               if (win && !win.isDestroyed()) {
@@ -646,6 +688,348 @@ function setupIpc() {
         )
       })
       return { ok: true, status: 200, content: full, providerId: pid }
+    }
+  )
+
+  // =========================================================================
+  // 媒体生成：生图 / 生视频 / 3D 模型描述（生图生视频：MiniMax + 字节火山；3D：字节推理流）
+  // =========================================================================
+
+  // ----- 生图 -----
+  ipcMain.handle(
+    'media:generate-image',
+    async (
+      _event,
+      args: {
+        provider: 'minimax' | 'volcengine'
+        apiKey: string
+        prompt: string
+        model?: string
+        size?: string // '1024x1024' (volc) or '1:1'/'16:9' (minimax aspect_ratio)
+        n?: number
+      }
+    ) => {
+      if (!args.apiKey) return { ok: false, error: '缺少 API Key' }
+      if (!args.prompt?.trim()) return { ok: false, error: '缺少 prompt' }
+      try {
+        if (args.provider === 'minimax') {
+          // MiniMax 文生图：POST https://api.minimax.io/v1/image_generation （模型 image-01，2026 仍为最新）
+          const url = 'https://api.minimax.io/v1/image_generation'
+          const body = {
+            model: args.model || 'image-01',
+            prompt: args.prompt,
+            aspect_ratio: args.size || '1:1',
+            response_format: 'url',
+            n: args.n || 1,
+            prompt_optimizer: true
+          }
+          const resp = await fetch(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${args.apiKey}`
+            },
+            body: JSON.stringify(body),
+            signal: AbortSignal.timeout(120000)
+          })
+          const text = await resp.text()
+          let data: any
+          try { data = JSON.parse(text) } catch { return { ok: false, status: resp.status, error: text.slice(0, 500) } }
+          if (!resp.ok) return { ok: false, status: resp.status, error: data?.base_resp?.status_msg || data?.message || text.slice(0, 300) }
+          const urls: string[] = data?.data?.image_urls || []
+          return { ok: true, status: 200, images: urls, raw: data }
+        } else {
+          // 字节火山方舟 文生图（Doubao Seedream 5.0 Pro）：POST /api/v3/images/generations
+          const baseUrl = 'https://ark.cn-beijing.volces.com/api/v3'
+          const url = `${baseUrl}/images/generations`
+          const body = {
+            model: args.model || 'doubao-seedream-5-0-pro-260628',
+            prompt: args.prompt,
+            size: args.size || '1024x1024',
+            response_format: 'url',
+            n: args.n || 1
+          }
+          const resp = await fetch(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${args.apiKey}`
+            },
+            body: JSON.stringify(body),
+            signal: AbortSignal.timeout(120000)
+          })
+          const text = await resp.text()
+          let data: any
+          try { data = JSON.parse(text) } catch { return { ok: false, status: resp.status, error: text.slice(0, 500) } }
+          if (!resp.ok) return { ok: false, status: resp.status, error: data?.error?.message || text.slice(0, 300) }
+          const urls: string[] = (data?.data || []).map((d: any) => d.url).filter(Boolean)
+          return { ok: true, status: 200, images: urls, raw: data }
+        }
+      } catch (e: any) {
+        if (e?.name === 'AbortError') return { ok: false, error: '请求超时（120s）' }
+        return { ok: false, error: e?.message || String(e) }
+      }
+    }
+  )
+
+  // ----- 生视频（异步轮询）-----
+  ipcMain.handle(
+    'media:generate-video',
+    async (
+      event,
+      args: {
+        provider: 'minimax' | 'volcengine'
+        apiKey: string
+        prompt: string
+        model?: string
+        duration?: number // 秒
+      }
+    ) => {
+      if (!args.apiKey) return { ok: false, error: '缺少 API Key' }
+      if (!args.prompt?.trim()) return { ok: false, error: '缺少 prompt' }
+      const win = BrowserWindow.fromWebContents(event.sender)
+      const sendProgress = (p: { phase: string; message?: string; progress?: number }) => {
+        if (win && !win.isDestroyed()) {
+          win.webContents.send('media:video:progress', p)
+        }
+      }
+      try {
+        let taskId = ''
+        if (args.provider === 'minimax') {
+          // MiniMax 文生视频：MiniMax-H3（2026-08-03 开源最新版，原生 30s/2K/立体声）
+          // 接口：POST https://api.minimax.io/v1/video_generation，content[] 多模态结构
+          sendProgress({ phase: 'submitting', message: '提交视频生成任务…' })
+          const url = 'https://api.minimax.io/v1/video_generation'
+          const duration = args.duration || 6
+          const body = {
+            model: args.model || 'MiniMax-H3',
+            content: [{ type: 'text', text: args.prompt }],
+            duration
+          }
+          const resp = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${args.apiKey}` },
+            body: JSON.stringify(body),
+            signal: AbortSignal.timeout(30000)
+          })
+          const text = await resp.text()
+          let data: any
+          try { data = JSON.parse(text) } catch { return { ok: false, error: text.slice(0, 500) } }
+          if (!resp.ok) return { ok: false, status: resp.status, error: data?.base_resp?.status_msg || text.slice(0, 300) }
+          taskId = data?.task_id
+          if (!taskId) return { ok: false, error: '未获取到 task_id' }
+
+          // 轮询：H3 返回 content.url，旧版返回 file.download_url
+          sendProgress({ phase: 'generating', message: '视频生成中…' })
+          const pollUrl = `https://api.minimax.io/v1/query/video_generation?task_id=${taskId}`
+          for (let i = 0; i < 120; i++) {
+            await new Promise((r) => setTimeout(r, 5000))
+            sendProgress({ phase: 'polling', progress: i, message: `轮询中 (${i + 1}/120)…` })
+            const pr = await fetch(pollUrl, { headers: { Authorization: `Bearer ${args.apiKey}` } })
+            const pt = await pr.text()
+            let pd: any
+            try { pd = JSON.parse(pt) } catch { continue }
+            const status = pd?.status || pd?.file?.download_status
+            if (status === 'Success' || status === 'success' || status === 'Succeeded' || status === 'succeeded') {
+              // H3 用 content.url，旧版用 file.download_url
+              const videoUrl = pd?.content?.url || pd?.file?.download_url
+              if (videoUrl) return { ok: true, status: 200, video: videoUrl, taskId, raw: pd }
+            }
+            if (status === 'Failed' || status === 'failed') {
+              return { ok: false, error: pd?.base_resp?.status_msg || '视频生成失败' }
+            }
+          }
+          return { ok: false, error: '视频生成超时（10分钟）' }
+        } else {
+          // 字节火山方舟 文生视频（Doubao Seedance 2.0，方舟稳定版）
+          // Seedance 2.5 仅 BytePlus 海外灰度，方舟暂未 GA
+          sendProgress({ phase: 'submitting', message: '提交视频生成任务…' })
+          const url = 'https://ark.cn-beijing.volces.com/api/v3/contents/generations/tasks'
+          const body = {
+            model: args.model || 'doubao-seedance-2-0-260128',
+            content: [{ type: 'text', text: args.prompt }]
+          }
+          const resp = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${args.apiKey}` },
+            body: JSON.stringify(body),
+            signal: AbortSignal.timeout(30000)
+          })
+          const text = await resp.text()
+          let data: any
+          try { data = JSON.parse(text) } catch { return { ok: false, error: text.slice(0, 500) } }
+          if (!resp.ok) return { ok: false, status: resp.status, error: data?.error?.message || text.slice(0, 300) }
+          taskId = data?.id
+          if (!taskId) return { ok: false, error: '未获取到 task_id' }
+
+          sendProgress({ phase: 'generating', message: '视频生成中…' })
+          const pollUrl = `${url}/${taskId}`
+          for (let i = 0; i < 120; i++) {
+            await new Promise((r) => setTimeout(r, 5000))
+            sendProgress({ phase: 'polling', progress: i, message: `轮询中 (${i + 1}/120)…` })
+            const pr = await fetch(pollUrl, { headers: { Authorization: `Bearer ${args.apiKey}` } })
+            const pt = await pr.text()
+            let pd: any
+            try { pd = JSON.parse(pt) } catch { continue }
+            const status = pd?.status
+            if (status === 'succeeded') {
+              // Seedance 2.0 content[].video_url 或 content.video_url
+              const videoUrl = pd?.content?.video_url
+                || (Array.isArray(pd?.content) ? pd.content.find((c: any) => c?.video_url)?.video_url : undefined)
+              if (videoUrl) return { ok: true, status: 200, video: videoUrl, taskId, raw: pd }
+            }
+            if (status === 'failed') {
+              return { ok: false, error: pd?.error?.message || '视频生成失败' }
+            }
+          }
+          return { ok: false, error: '视频生成超时（10分钟）' }
+        }
+      } catch (e: any) {
+        if (e?.name === 'AbortError') return { ok: false, error: '请求超时' }
+        return { ok: false, error: e?.message || String(e) }
+      }
+    }
+  )
+
+  // ----- 3D 模型生成（字节在线推理流 → 生成场景 JSON → 前端 Three.js 渲染）-----
+  ipcMain.handle(
+    'media:generate-3d',
+    async (
+      event,
+      args: {
+        apiKey: string
+        prompt: string
+        model: string // 火山 Ark endpoint ID
+        baseUrl?: string
+      }
+    ) => {
+      if (!args.apiKey) return { ok: false, error: '缺少火山 API Key' }
+      if (!args.model) return { ok: false, error: '缺少火山推理接入点 Endpoint ID' }
+      if (!args.prompt?.trim()) return { ok: false, error: '缺少 prompt' }
+      const win = BrowserWindow.fromWebContents(event.sender)
+
+      const sysPrompt = `你是一个 3D 场景生成助手。用户会给你一段描述，你需要输出一个 JSON 格式的 Three.js 场景描述。
+JSON 格式如下：
+{
+  "objects": [
+    {
+      "type": "box" | "sphere" | "cylinder" | "cone" | "torus" | "plane" | "dodecahedron" | "icosahedron" | "octahedron" | "tetrahedron" | "torusknot",
+      "position": [x, y, z],
+      "rotation": [x, y, z],
+      "scale": [x, y, z],
+      "color": "#hexcolor",
+      "metalness": 0.0-1.0,
+      "roughness": 0.0-1.0,
+      "wireframe": false
+    }
+  ],
+  "background": "#hexcolor",
+  "ground": true | false,
+  "groundColor": "#hexcolor"
+}
+
+要求：
+- 只输出 JSON，不要任何解释文字
+- 坐标范围 -5 到 5
+- 颜色用 #rrggbb 格式
+- 根据用户描述合理摆放物体
+- 最多 15 个物体`
+
+      try {
+        const baseUrl = (args.baseUrl || 'https://ark.cn-beijing.volces.com/api/v3').replace(/\/$/, '')
+        const url = `${baseUrl}/chat/completions`
+        const body = {
+          model: args.model,
+          messages: [
+            { role: 'system', content: sysPrompt },
+            { role: 'user', content: args.prompt }
+          ],
+          stream: true,
+          temperature: 0.7,
+          max_tokens: 2048
+        }
+
+        const resp = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${args.apiKey}` },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(120000)
+        })
+
+        if (!resp.ok || !resp.body) {
+          const errText = await resp.text()
+          let msg = `HTTP ${resp.status}`
+          try { msg = JSON.parse(errText)?.error?.message || errText.slice(0, 300) } catch {}
+          return { ok: false, status: resp.status, error: msg }
+        }
+
+        const reader = resp.body.getReader()
+        const decoder = new TextDecoder('utf-8')
+        let buffer = ''
+        let full = ''
+
+        const processBlock = (block: string) => {
+          const lines = block.split('\n')
+          const dataLines: string[] = []
+          for (const line of lines) {
+            const s = line.trim()
+            if (!s) continue
+            if (s.startsWith('data:')) dataLines.push(s.slice(5).trim())
+          }
+          if (dataLines.length === 0) return
+          const payloadStr = dataLines.join('\n')
+          if (payloadStr === '[DONE]') return
+          try {
+            const json = JSON.parse(payloadStr)
+            const delta = json?.choices?.[0]?.delta?.content
+            if (typeof delta === 'string' && delta) {
+              full += delta
+              if (win && !win.isDestroyed()) {
+                win.webContents.send('media:3d:delta', { delta, full })
+              }
+            }
+          } catch { /* ignore */ }
+        }
+
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+          let idx: number
+          while ((idx = buffer.indexOf('\n\n')) >= 0) {
+            const block = buffer.slice(0, idx).trim()
+            buffer = buffer.slice(idx + 2)
+            if (block) processBlock(block)
+          }
+        }
+        if (buffer.trim()) processBlock(buffer.trim())
+
+        // 尝试从流式输出中提取 JSON
+        let sceneJson: any = null
+        try {
+          // 找到第一个 { 和最后一个 }
+          const start = full.indexOf('{')
+          const end = full.lastIndexOf('}')
+          if (start >= 0 && end > start) {
+            sceneJson = JSON.parse(full.slice(start, end + 1))
+          }
+        } catch {
+          // 尝试修复常见 JSON 问题
+          try {
+            const start = full.indexOf('{')
+            const end = full.lastIndexOf('}')
+            if (start >= 0 && end > start) {
+              const candidate = full.slice(start, end + 1).replace(/,\s*}/g, '}').replace(/,\s*]/g, ']')
+              sceneJson = JSON.parse(candidate)
+            }
+          } catch { /* JSON 解析失败 */ }
+        }
+
+        return { ok: true, status: 200, content: full, scene: sceneJson }
+      } catch (e: any) {
+        if (e?.name === 'AbortError') return { ok: false, error: '请求超时（120s）' }
+        return { ok: false, error: e?.message || String(e) }
+      }
     }
   )
 }
@@ -735,18 +1119,22 @@ app.whenReady().then(() => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow()
     }
+    if (!backendRunning) {
+      startBackend()
+    }
   })
 })
 
 app.on('window-all-closed', () => {
-  stopBackend()
-  if (ptyProcess) {
-    ptyProcess.kill()
-    ptyProcess = null
-  }
   if (process.platform !== 'darwin') {
+    stopBackend()
+    if (ptyProcess) {
+      ptyProcess.kill()
+      ptyProcess = null
+    }
     app.quit()
   }
+  // macOS: 保留后端进程，只关窗口
 })
 
 app.on('before-quit', () => {

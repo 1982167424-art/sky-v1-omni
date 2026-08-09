@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react'
 
-export type ActivityId = 'chat' | 'search' | 'reasoning' | 'rag' | 'github' | 'terminal' | 'settings'
+export type ActivityId = 'chat' | 'search' | 'reasoning' | 'rag' | 'github' | 'terminal' | 'image' | 'video' | '3d' | 'audio' | 'settings'
 
 export interface Tab {
   id: string
@@ -57,6 +57,10 @@ function reducer(state: AppState, action: Action): AppState {
           rag: 'RAG / Docs',
           github: 'GitHub',
           terminal: 'Terminal',
+          image: 'Image Gen',
+          video: 'Video Gen',
+          '3d': '3D Viewer',
+          audio: 'Audio',
           settings: 'Settings'
         }
         const newTab: Tab = {

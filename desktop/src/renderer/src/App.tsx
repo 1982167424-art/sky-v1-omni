@@ -11,7 +11,12 @@ import {
   ChevronDown,
   Power,
   RefreshCw,
-  Circle
+  Circle,
+  Image as ImageIcon,
+  Video as VideoIcon,
+  Box,
+  Volume2,
+  Mic
 } from 'lucide-react'
 import { useApp, ActivityId } from './store'
 import clsx from 'clsx'
@@ -22,6 +27,10 @@ import RagView from './views/RagView'
 import GithubView from './views/GithubView'
 import TerminalView from './views/TerminalView'
 import SettingsView from './views/SettingsView'
+import ImageGenView from './views/ImageGenView'
+import VideoGenView from './views/VideoGenView'
+import ThreeDView from './views/ThreeDView'
+import AudioView from './views/AudioView'
 
 const ACTIVITY_ITEMS: { id: ActivityId; icon: React.ComponentType<any>; label: string }[] = [
   { id: 'chat', icon: MessageSquare, label: 'Chat' },
@@ -30,6 +39,10 @@ const ACTIVITY_ITEMS: { id: ActivityId; icon: React.ComponentType<any>; label: s
   { id: 'rag', icon: BookOpen, label: 'RAG / Docs' },
   { id: 'github', icon: Github, label: 'GitHub' },
   { id: 'terminal', icon: TerminalIcon, label: 'Terminal' },
+  { id: 'image', icon: ImageIcon, label: 'Image Generation' },
+  { id: 'video', icon: VideoIcon, label: 'Video Generation' },
+  { id: '3d', icon: Box, label: '3D Model Viewer' },
+  { id: 'audio', icon: Volume2, label: 'Audio (TTS/ASR)' },
   { id: 'settings', icon: Settings, label: 'Settings' }
 ]
 
@@ -148,6 +161,10 @@ function SidePanel() {
     rag: 'Documents',
     github: 'GitHub',
     terminal: 'Terminal',
+    image: 'Image Generation',
+    video: 'Video Generation',
+    '3d': '3D Model Viewer',
+    audio: 'Audio (TTS / ASR)',
     settings: 'Settings'
   }
   return (
@@ -189,7 +206,17 @@ function SidePanel() {
             Manage documents and collections.
           </div>
         )}
-        {!['chat', 'search', 'rag'].includes(state.activeActivity) && (
+        {['image', 'video', '3d'].includes(state.activeActivity) && (
+          <div style={{ color: 'var(--fg-secondary)', fontSize: 12, padding: 8 }}>
+            选择服务商并输入 Prompt 生成媒体内容。
+          </div>
+        )}
+        {state.activeActivity === 'audio' && (
+          <div style={{ color: 'var(--fg-secondary)', fontSize: 12, padding: 8 }}>
+            豆包 TTS 2.0 / ASR 音频处理。
+          </div>
+        )}
+        {!['chat', 'search', 'rag', 'image', 'video', '3d', 'audio'].includes(state.activeActivity) && (
           <div style={{ color: 'var(--fg-secondary)', fontSize: 12, padding: 8 }}>
             No explorer content for this view.
           </div>
@@ -210,6 +237,10 @@ function ActivityRenderer() {
     case 'rag': return <RagView />
     case 'github': return <GithubView />
     case 'terminal': return <TerminalView />
+    case 'image': return <ImageGenView />
+    case 'video': return <VideoGenView />
+    case '3d': return <ThreeDView />
+    case 'audio': return <AudioView />
     case 'settings': return <SettingsView />
     default: return <div style={{ padding: 20, color: 'var(--fg-secondary)' }}>Select a view</div>
   }

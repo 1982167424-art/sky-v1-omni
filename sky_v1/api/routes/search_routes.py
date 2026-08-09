@@ -5,6 +5,8 @@
 """
 from __future__ import annotations
 
+from typing import Literal
+
 from fastapi import APIRouter, Request
 
 from sky_v1.api.types import (

@@ -117,6 +117,36 @@ def create_app(
     try:
         register_all_routes(app)
     except Exception as e:
-        log.warning("register_all_routes raised (non-fatal)", error=str(e))
+        log.error("register_all_routes FAILED — app will have no routes!", error=str(e))
+        raise
+
+    # 根路径处理器：避免访问 / 时 404
+    @app.get("/")
+    async def root():
+        return {
+            "service": "sky-v1-omni API",
+            "version": __version__,
+            "docs": "/docs",
+            "openapi": "/openapi.json",
+            "endpoints": {
+                "health": "GET /health",
+                "metrics": "GET /metrics",
+                "chat_completions": "POST /v1/chat/completions",
+                "completions": "POST /v1/completions",
+                "embeddings": "POST /v1/embeddings",
+                "rag_query": "POST /v1/rag/query",
+                "rag_health": "GET /v1/rag/health",
+                "rag_ingest": "POST /v1/rag/ingest",
+                "images_generations": "POST /v1/images/generations",
+                "audio_speech": "POST /v1/audio/speech",
+                "audio_transcriptions": "POST /v1/audio/transcriptions",
+                "videos_generations": "POST /v1/videos/generations",
+                "3d_generations": "POST /v1/3d/generations",
+                "agent_run": "POST /v1/agent/run",
+                "agent_tools": "GET /v1/agent/tools",
+                "search_web": "POST /v1/search/web",
+                "reasoning_deep": "POST /v1/reasoning/deep",
+            },
+        }
 
     return app

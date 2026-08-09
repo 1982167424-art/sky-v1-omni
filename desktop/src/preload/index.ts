@@ -116,6 +116,63 @@ export interface ProvidersApi {
   onChatDelta: (cb: (ev: { providerId: string; delta: string }) => void) => () => void
 }
 
+export interface MediaImageResult {
+  ok: boolean
+  status?: number
+  images?: string[]
+  error?: string
+  raw?: any
+}
+
+export interface MediaVideoResult {
+  ok: boolean
+  status?: number
+  video?: string
+  taskId?: string
+  error?: string
+  raw?: any
+}
+
+export interface Media3DResult {
+  ok: boolean
+  status?: number
+  content?: string
+  scene?: any
+  error?: string
+}
+
+export interface VideoProgress {
+  phase: string
+  message?: string
+  progress?: number
+}
+
+export interface MediaApi {
+  generateImage: (args: {
+    provider: 'minimax' | 'volcengine'
+    apiKey: string
+    prompt: string
+    model?: string
+    size?: string
+    n?: number
+  }) => Promise<MediaImageResult>
+  generateVideo: (args: {
+    provider: 'minimax' | 'volcengine'
+    apiKey: string
+    prompt: string
+    model?: string
+    duration?: number
+  }) => Promise<MediaVideoResult>
+  generate3D: (args: {
+    apiKey: string
+    prompt: string
+    model: string
+    baseUrl?: string
+  }) => Promise<Media3DResult>
+  onVideoProgress: (cb: (p: VideoProgress) => void) => () => void
+  on3DDelta: (cb: (ev: { delta: string; full: string }) => void) => () => void
+}
+
 export interface SkyWindow {
   backend: BackendApi
   app: AppApi
@@ -124,6 +181,7 @@ export interface SkyWindow {
   api: RestApi
   rag: RagApi
   providers: ProvidersApi
+  media: MediaApi
 }
 
 const backend: BackendApi = {
@@ -204,6 +262,22 @@ const providers: ProvidersApi = {
   }
 }
 
+const media: MediaApi = {
+  generateImage: (args) => ipcRenderer.invoke('media:generate-image', args),
+  generateVideo: (args) => ipcRenderer.invoke('media:generate-video', args),
+  generate3D: (args) => ipcRenderer.invoke('media:generate-3d', args),
+  onVideoProgress: (cb) => {
+    const listener = (_e: any, p: any) => cb(p)
+    ipcRenderer.on('media:video:progress', listener)
+    return () => ipcRenderer.removeListener('media:video:progress', listener)
+  },
+  on3DDelta: (cb) => {
+    const listener = (_e: any, ev: any) => cb(ev)
+    ipcRenderer.on('media:3d:delta', listener)
+    return () => ipcRenderer.removeListener('media:3d:delta', listener)
+  }
+}
+
 const sky: SkyWindow = {
   backend,
   app: appApi,
@@ -211,7 +285,8 @@ const sky: SkyWindow = {
   terminal,
   api,
   rag,
-  providers
+  providers,
+  media
 }
 
 contextBridge.exposeInMainWorld('sky', sky)
