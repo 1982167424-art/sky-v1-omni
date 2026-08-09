@@ -77,9 +77,9 @@ export const PROVIDER_META: ProviderMeta[] = [
     defaultBaseUrl: 'https://open.bigmodel.cn/api/paas/v4',
     docsUrl: 'https://open.bigmodel.cn/dev/api',
     modelLabel: '模型 ID',
-    modelPlaceholder: '例如 glm-4.6 / glm-4.5-flash / glm-4-plus',
+    modelPlaceholder: '例如 glm-5.1 / glm-4.5-flash / glm-4.6',
     supportsStreaming: true,
-    defaultModel: 'glm-4.6'
+    defaultModel: 'glm-5.1'
   },
   {
     id: 'moonshot',
@@ -168,6 +168,39 @@ export const PROVIDER_META: ProviderMeta[] = [
     modelPlaceholder: '例如 gpt-5 / gpt-4o / o3 / gpt-4o-mini',
     supportsStreaming: true,
     defaultModel: 'gpt-5'
+  },
+  {
+    id: 'sensetime',
+    name: '商汤 SenseNova (日日新)',
+    brandColor: '#00C2B2',
+    defaultBaseUrl: 'https://token.sensenova.cn/v1',
+    docsUrl: 'https://platform.sensenova.cn/docs',
+    modelLabel: '模型 ID',
+    modelPlaceholder: '例如 sensenova-6.7-flash-lite / deepseek-v4-flash / SenseChat-5',
+    supportsStreaming: true,
+    defaultModel: 'sensenova-6.7-flash-lite'
+  },
+  {
+    id: 'siliconflow',
+    name: '硅基流动 SiliconFlow',
+    brandColor: '#FF6A00',
+    defaultBaseUrl: 'https://api.siliconflow.cn/v1',
+    docsUrl: 'https://docs.siliconflow.cn/cn/api-reference/chat-completions/',
+    modelLabel: '模型 ID',
+    modelPlaceholder: '例如 deepseek-ai/DeepSeek-V3.2 / zai-org/GLM-5.1 / moonshotai/Kimi-K2.6',
+    supportsStreaming: true,
+    defaultModel: 'deepseek-ai/DeepSeek-V3.2'
+  },
+  {
+    id: 'telechat',
+    name: '中国电信 星辰 TeleChat',
+    brandColor: '#0066CC',
+    defaultBaseUrl: 'https://ai.ctaigw.cn/v1',
+    docsUrl: 'https://www.teleai.com.cn',
+    modelLabel: '模型 ID',
+    modelPlaceholder: '例如 TeleChat3-105B-A4.7-Thinking / TeleChat3-36B-Thinking / TeleChat2-39B-A12B',
+    supportsStreaming: true,
+    defaultModel: 'TeleChat3-105B-A4.7-Thinking'
   },
   {
     id: 'openai-compatible',

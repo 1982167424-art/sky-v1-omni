@@ -146,6 +146,8 @@ def create_app(
                 "agent_tools": "GET /v1/agent/tools",
                 "search_web": "POST /v1/search/web",
                 "reasoning_deep": "POST /v1/reasoning/deep",
+                "providers": "GET /v1/providers",
+                "providers_chat": "POST /v1/providers/chat",
             },
         }
 
