@@ -1,0 +1,11 @@
+_base_: ./sky_v1_infer_cpu.yaml
+inference:
+  device: cuda
+  dtype: fp16
+  max_batch_size: 8
+  kv_cache:
+    max_pages: 4096
+  speculative:
+    enabled: true
+    draft_model: sky_v1_1B
+    num_spec_tokens: 4

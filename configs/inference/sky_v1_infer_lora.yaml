@@ -1,0 +1,11 @@
+_base_: ./sky_v1_infer_cpu.yaml
+inference:
+  quant:
+    mode: none
+  lora:
+    enabled: true
+    rank: 8
+    alpha: 16
+    dropout: 0.05
+    target_modules: ["q_proj", "k_proj", "v_proj", "ffn_gate_up"]
+    adapter_path: null

@@ -1,0 +1,17 @@
+model:
+  _base_: ../model/sky_v1_1B.yaml
+inference:
+  device: cpu
+  dtype: fp32
+  max_batch_size: 4
+  max_seq_len: 4096
+  kv_cache:
+    page_size: 32
+    max_pages: 1024
+  speculative:
+    enabled: false
+  quant:
+    mode: none
+  streaming:
+    enabled: true
+    chunk_size: 8

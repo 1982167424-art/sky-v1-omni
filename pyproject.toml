@@ -28,6 +28,7 @@ embed = ["sentence-transformers>=2.5", "onnxruntime>=1.17"]
 skyv1-rag-ingest = "scripts.rag.ingest_knowledge:main"
 skyv1-agent-server = "scripts.agent.start_agent_server:main"
 skyv1-sync-github = "scripts.data.sync_github_repos_to_rag:main"
+sky = "sky_v1.cli.main:main"
 
 [build-system]
 requires = ["setuptools>=68"]

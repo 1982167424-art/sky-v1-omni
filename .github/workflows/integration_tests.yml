@@ -1,0 +1,26 @@
+name: Integration Tests
+
+on:
+  schedule:
+    - cron: "13 3 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e . || true
+          pip install pytest pyyaml typer fastapi httpx
+      - name: Integration tests
+        run: PYTHONPATH=. python -m pytest tests/integration -v --tb=short -q
+      - name: E2E smoke (M4)
+        run: PYTHONPATH=. python -m pytest tests/e2e/test_pipeline_m4m5_smoke.py -v --tb=short

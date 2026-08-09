@@ -1,7 +1,7 @@
 from __future__ import annotations
 import torch
 import torch.nn as nn
-from .config import SkyModelConfig, ModalConfig, HeadsConfig
+from .config import SkyModelConfig, ModalConfig, HeadsConfig, build_model_from_config
 from .backbone import UniTransformerBackbone
 from .embeddings import ModalTypeEmbedding
 from .modal_tokenizers import (
