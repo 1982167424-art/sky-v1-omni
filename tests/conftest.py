@@ -1,4 +1,5 @@
 import ast
+import importlib
 import sys
 from pathlib import Path
 
@@ -11,7 +12,12 @@ if str(_PROJECT_ROOT) not in sys.path:
 
 # ---------------------------------------------------------------------------
 # CI 轻量化：当 torch / sentence-transformers 等重依赖不可用时，自动跳过
-# 依赖它们的测试模块（AST 静态扫描，不执行模块代码，安全可靠）
+# 依赖它们的测试模块。
+#
+# 两阶段检测：
+#   1) AST 静态扫描：直接 import torch/sentence_transformers/... 的模块 → 跳过
+#   2) 间接依赖探测：提取测试文件的 `from sky_v1.X import ...`，尝试 import
+#      这些 sky_v1 子模块；若因 torch 缺失而 ImportError → 跳过
 # ---------------------------------------------------------------------------
 _HEAVY_DEPS = ("torch", "sentence_transformers", "transformers", "onnxruntime")
 
@@ -25,24 +31,42 @@ except ImportError:
         if not _sub_dir.is_dir():
             continue
         for _f in _sub_dir.glob("test_*.py"):
+            _rel = f"{_sub}/{_f.name}"
             try:
                 _tree = ast.parse(_f.read_text(encoding="utf-8"), filename=str(_f))
             except Exception:
                 continue
+
+            # 阶段 1：直接 import 重依赖
             _needs_heavy = False
+            _sky_imports: set[str] = set()
             for _node in ast.walk(_tree):
                 if isinstance(_node, ast.Import):
                     for _alias in _node.names:
                         if any(_alias.name.startswith(_d) for _d in _HEAVY_DEPS):
                             _needs_heavy = True
-                            break
+                        if _alias.name.startswith("sky_v1"):
+                            _sky_imports.add(_alias.name)
                 elif isinstance(_node, ast.ImportFrom) and _node.module:
                     if any(_node.module.startswith(_d) for _d in _HEAVY_DEPS):
                         _needs_heavy = True
+                    if _node.module.startswith("sky_v1"):
+                        _sky_imports.add(_node.module)
                 if _needs_heavy:
                     break
             if _needs_heavy:
-                _collect_ignore.append(f"{_sub}/{_f.name}")
+                _collect_ignore.append(_rel)
+                continue
+
+            # 阶段 2：间接依赖（sky_v1.X 本身可能 import torch）
+            for _mod in sorted(_sky_imports):
+                try:
+                    importlib.import_module(_mod)
+                except ImportError:
+                    _collect_ignore.append(_rel)
+                    break
+                except Exception:
+                    pass  # 其他异常（如 TypeError）不阻塞，交给 pytest 正常报错
 
 collect_ignore = _collect_ignore
 
