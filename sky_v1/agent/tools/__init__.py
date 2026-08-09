@@ -1,7 +1,8 @@
-"""sky_v1.agent.tools: 11 built-in tools + pre-populated TOOL_REGISTRY."""
+"""sky_v1.agent.tools: 14 built-in tools + pre-populated TOOL_REGISTRY."""
 from sky_v1.agent.base import ToolRegistry
 from sky_v1.agent.tools.audio_tools import ASRTool, TTSTool
 from sky_v1.agent.tools.image_tools import ImageGenerationTool, ImageUnderstandingTool
+from sky_v1.agent.tools.search_tools import DeepReasoningTool, WebSearchTool
 from sky_v1.agent.tools.text_tools import ChatTool, CodeTool, RagTool
 from sky_v1.agent.tools.three_d_tools import MeshTool, NERFTool, PointCloudTool
 from sky_v1.agent.tools.video_tools import VideoGenerationTool, VideoUnderstandingTool
@@ -18,6 +19,8 @@ VideoGenerationTool.__qualname__
 PointCloudTool.__qualname__
 MeshTool.__qualname__
 NERFTool.__qualname__
+WebSearchTool.__qualname__
+DeepReasoningTool.__qualname__
 
 default_registry = ToolRegistry()
 default_registry.register(ChatTool())
@@ -32,6 +35,8 @@ default_registry.register(VideoGenerationTool())
 default_registry.register(PointCloudTool())
 default_registry.register(MeshTool())
 default_registry.register(NERFTool())
+default_registry.register(WebSearchTool())
+default_registry.register(DeepReasoningTool())
 
 TOOL_REGISTRY: ToolRegistry = default_registry
 
@@ -50,4 +55,6 @@ __all__ = [
     "PointCloudTool",
     "MeshTool",
     "NERFTool",
+    "WebSearchTool",
+    "DeepReasoningTool",
 ]

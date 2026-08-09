@@ -132,6 +132,15 @@ try:
 except Exception:
     cli_app = None  # type: ignore
 
+# --- 搜索 / 深度推理 工具 (M5+) ---
+SEARCH_TOOLS_AVAILABLE = False
+try:
+    from .agent.tools.search_tools import WebSearchTool, DeepReasoningTool
+    SEARCH_TOOLS_AVAILABLE = True
+except Exception:
+    WebSearchTool = None  # type: ignore
+    DeepReasoningTool = None  # type: ignore
+
 __all__ = [
     "__version__",
     "SkyModel", "build_model_from_config", "SkyModelConfig", "load_config_from_yaml",
@@ -145,7 +154,9 @@ __all__ = [
     "LoRALinear", "mark_lora_targets_", "merge_lora_", "unload_lora_", "get_lora_state_dict", "load_lora_state_dict",
     "SkySDK",
     "cli_app",
+    "WebSearchTool", "DeepReasoningTool",
     "MODEL_AVAILABLE", "TRAINING_AVAILABLE", "DATA_AVAILABLE",
     "RAG_AVAILABLE", "AGENT_AVAILABLE", "API_AVAILABLE",
     "INFERENCE_AVAILABLE", "QUANT_AVAILABLE", "LORA_AVAILABLE", "SDK_AVAILABLE", "CLI_AVAILABLE",
+    "SEARCH_TOOLS_AVAILABLE",
 ]

@@ -25,6 +25,8 @@ _SIM_TOOL_REGISTRY = [
     {"name": "tool_3d_pointcloud", "enabled": True, "type": "3d", "description": "3D点云处理"},
     {"name": "tool_3d_mesh", "enabled": True, "type": "3d", "description": "3D网格模型生成/转换"},
     {"name": "tool_3d_nerf", "enabled": True, "type": "3d", "description": "NeRF神经辐射场重建"},
+    {"name": "tool_web_search", "enabled": True, "type": "search", "description": "毫秒级联网搜索（SerpAPI/Tavily/DuckDuckGo + TTL/LRU缓存）"},
+    {"name": "tool_deep_reasoning", "enabled": True, "type": "reasoning", "description": "深度多步推理（Plan-Act-Observe-Reflect，含自我纠错 + 置信度）"},
 ]
 
 

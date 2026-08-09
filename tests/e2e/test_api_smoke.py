@@ -15,12 +15,16 @@ def test_metrics_has_requests_total(test_client):
     assert "requests_total" in body
 
 
-def test_agent_tools_12(test_client):
+def test_agent_tools_14(test_client):
+    """注册工具数：12 基础 (text/vision/audio/video/3D) + 联网搜索 + 深度推理 = 14"""
     resp = test_client.get("/v1/agent/tools")
     assert resp.status_code == 200
     body = resp.json()
     tools = body.get("tools", [])
-    assert len(tools) == 12
+    names = {t.get("name") for t in tools}
+    assert len(tools) == 14
+    assert "tool_web_search" in names
+    assert "tool_deep_reasoning" in names
 
 
 def test_chat_completions(test_client):

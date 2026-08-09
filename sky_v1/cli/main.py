@@ -127,12 +127,56 @@ def cmd_rag(
     elif action == "query" and arg:
         hits = kb.search(arg, k=5)
         for h in hits:
-            typer.echo(f"- [{h.get('score',''):.3f}] {h.get('title','')[:80]}")
+            score = h.get("score")
+            s = f"{score:.3f}" if isinstance(score, float) else str(score)
+            typer.echo(f"- [{s}] {str(h.get('title',''))[:80]}")
     elif action == "list":
         typer.echo(f"docs_in_index: {kb.count()}")
     else:
         typer.echo("Usage: sky rag ingest <path> | query <q> | list", err=True)
         raise typer.Exit(2)
+
+
+@app.command("search")
+def cmd_search(
+    query: str = typer.Argument(..., help="搜索关键词"),
+    num: int = typer.Option(5, "--num", "-n", min=1, max=20, help="返回条数"),
+    no_cache: bool = typer.Option(False, "--no-cache", help="跳过缓存"),
+) -> None:
+    """毫秒级联网搜索（多 Provider + TTL/LRU 缓存）。"""
+    from ..agent.base import ToolContext
+    from ..agent.tools.search_tools import WebSearchTool
+    tool = WebSearchTool()
+    ctx = ToolContext(session_id="cli-search")
+    res = tool.run(ctx, query=query, num_results=num, skip_cache=no_cache)
+    typer.echo(res.output)
+
+
+@app.command("think")
+def cmd_think(
+    question: str = typer.Argument(..., help="需要深度推理的问题"),
+    steps: int = typer.Option(3, "--steps", "-s", min=1, max=6, help="最大推理步数"),
+    no_web: bool = typer.Option(False, "--no-web", help="不调用联网搜索"),
+    no_cite: bool = typer.Option(False, "--no-cite", help="省略引用标注"),
+) -> None:
+    """深度多步推理（Plan-Act-Observe-Reflect + 置信度）。"""
+    from ..agent.base import ToolContext
+    from ..rag.knowledge_base import SkyKnowledgeBase
+    from ..agent.tools.search_tools import DeepReasoningTool
+    tool = DeepReasoningTool()
+    try:
+        kb = SkyKnowledgeBase()
+    except Exception:
+        kb = None
+    ctx = ToolContext(session_id="cli-think", rag_kb=kb)
+    res = tool.run(
+        ctx,
+        question=question,
+        max_iterations=steps,
+        enable_web_search=not no_web,
+        citations_needed=not no_cite,
+    )
+    typer.echo(res.output)
 
 
 def main() -> None:

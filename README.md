@@ -2,7 +2,7 @@
 
 > **五模态 (Text / Image / 3D / Video / Audio) 统一大模型系统**
 > 当前里程碑：`v0.1.0a1` — M1~M5 全链路已交付：Agent + RAG + OpenAI 兼容 API + UniTransformer 五模态骨干 + 三阶段训练 + 推理引擎 + 量化/LoRA + Benchmark + 5 老师蒸馏 + 预训练暖启动
-> 全量 **145 tests** 通过（无 GPU / 无网络 / 无 API Key 可跑）
+> 全量 **167 tests** 通过（无 GPU / 无网络 / 无 API Key 可跑）
 
 ---
 
@@ -12,13 +12,15 @@
 
 | 能力 | 模块 | 状态 | 说明 |
 |------|------|:----:|------|
-| 🤖 5 模态 Agent 编排 | `sky_v1.agent` (M1) | ✅ | 12 专家工具 + 启发式路由 + STM/LTM 记忆 + 幻觉反思 |
-| 📚 RAG 检索增强知识库 | `sky_v1.rag` (M1) | ✅ | 8 篇预置文档 + InMemory/Chroma 双后端 + Reranker + HyDE |
-| 🌐 OpenAI 兼容 API | `sky_v1.api` (M1/M4) | ✅ | `/v1/chat/completions` 等 10+ 端点，Engine 与 Agent 双路径 |
+| 🤖 5 模态 Agent 编排 | `sky_v1.agent` (M1) | ✅ | **14 专家工具** + 启发式路由 + STM/LTM 记忆 + 幻觉反思 |
+| 📚 RAG 检索增强知识库 | `sky_v1.rag` (M1) | ✅ | **9 篇预置文档**（含国内外大模型差异化优势选型表）+ InMemory/Chroma 双后端 + Reranker + HyDE |
+| 🌐 OpenAI 兼容 API | `sky_v1.api` (M1/M4) | ✅ | `/v1/chat/completions` 等端点 + **/v1/search/web + /v1/reasoning/deep**，Engine 与 Agent 双路径 |
 | 🧠 UniTransformer 五模态骨干 | `sky_v1.model` (M2) | ✅ | RMSNorm + RoPE + SwiGLU + 5 Tokenizer / 5 Head + 模态类型嵌入 |
 | 🏋️ 三阶段训练框架 | `sky_v1.training` (M3) | ✅ | Phase1 warmup / Phase2 align (SFT+InfoNCE) / Phase3 distill (KD3+DPO) + Checkpoint |
 | ⚡ 推理引擎 | `sky_v1.inference` (M4) | ✅ | SkyInferenceEngine + PagedKVCache + W8A8/W4A16 量化 + LoRA 热切换 |
-| 🔌 SDK + CLI | `sky_v1.sdk` / `sky_v1.cli` (M4/M5) | ✅ | OpenAI 兼容 SDK + Typer CLI（chat/embed/serve/train/rag）|
+| 🔌 SDK + CLI | `sky_v1.sdk` / `sky_v1.cli` (M4/M5) | ✅ | OpenAI 兼容 SDK + Typer CLI（**chat/embed/serve/train/rag + search/think**）|
+| 🔎 毫秒级联网搜索 | `sky_v1.agent.tools.WebSearchTool` (M5+) | ✅ | SerpAPI > Tavily > DuckDuckGo HTML **三级 Provider** + **TTL/LRU 缓存（热查询 <50ms）**，零依赖时模拟兜底 |
+| 🧩 深度多步推理 | `sky_v1.agent.tools.DeepReasoningTool` (M5+) | ✅ | **Plan-Act-Observe-Reflect** Tree-of-Thoughts + 自我反思纠错 + 置信度 + 可选搜索验算 |
 | 📊 Benchmark 评估 | `sky_v1.eval` (M5) | ✅ | MMLU 5-shot / HumanEval pass@1 / 推理吞吐，结果可存取 |
 | 👨‍🏫 5 老师蒸馏 | `sky_v1.training.teacher_client` (M5) | ✅ | Claude/GPT/Kimi/MiMo/Qwen API + Qwen72B 本地 fallback |
 | 🔄 预训练暖启动 | `sky_v1.model.pretrained_loader` (M5) | ✅ | Qwen/CLIP-ViT/Whisper 权重对齐灌入对应模态 Tokenizer |
@@ -40,9 +42,9 @@ pip install "pydantic>=2.5" "omegaconf>=2.3" "pyyaml>=6.0" \
             "typing-extensions>=4.9" "python-dotenv>=1.0" \
             "pytest>=8.0" "pytest-asyncio>=0.23"
 
-# 2. 跑全量测试，确认环境 OK (145 tests, ~60s)
+# 2. 跑全量测试，确认环境 OK (167 tests, ~60s)
 PYTHONPATH=. python -m pytest tests -q --tb=no
-# -> 期望: 145 passed, 0 failed
+# -> 期望: 167 passed, 0 failed
 
 # 3. 一键摄入预置知识库（可选，不启动服务也能查）
 PYTHONPATH=. python -m scripts.rag.ingest_knowledge \
@@ -181,7 +183,7 @@ sky-v1-omni/
 │   ├── training/ {init_from_pretrained, phase1/2/3, train_toy_overfit}
 │   ├── data/ {download_pretrain/sft/modal/preference, build_distillset, sync_github_repos_to_rag}
 │   └── eval/run_benchmark.py                 ← Benchmark 入口
-├── tests/                                    ← 145 tests (Unit/Integration/E2E)
+├── tests/                                    ← 167 tests (Unit/Integration/E2E)
 └── docs/superpowers/
     ├── specs/2026-08-08-sky-v1-design.md     ← 规格书 v1.0 (已评审)
     └── plans/ {m1, m2-m3, m4-m5} 实现计划
@@ -192,10 +194,10 @@ sky-v1-omni/
 ## 🧪 质量保证 (Bug 零容忍)
 
 ```
-测试金字塔 (145 passed, 0 failed, ~60s)
+测试金字塔 (167 passed, 0 failed, ~60s)
 ├─ E2E:         12  (health/metrics/chat/rag/image/agent/tools + M2M3/M4M5 全链路冒烟)
-├─ Integration: 25  (RAG 全流程 / 工具链 / 多模态 / 模型序列化 / 训练过拟合 / API Engine 模式 / serve --engine / 数据下载·评估·暖启动脚本冒烟)
-└─ Unit:        108 (形状 / 数值 / 路由 / 边界 / Guard / 量化 / LoRA / 蒸馏 / Benchmark / 暖启动)
+├─ Integration: 32  (RAG 全流程 / 工具链 / 多模态 / 模型序列化 / 训练过拟合 / API Engine 模式 / serve --engine / 数据下载·评估·暖启动脚本冒烟 / 搜索·推理路由 + RAG 预置文档)
+└─ Unit:        123 (形状 / 数值 / 路由 / 边界 / Guard / 量化 / LoRA / 蒸馏 / Benchmark / 暖启动 / 搜索·推理工具 + 缓存 TTL/LRU)
 ```
 
 额外防御：

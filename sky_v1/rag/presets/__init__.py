@@ -56,6 +56,12 @@ PRESET_DOCS: list[tuple[str, str, str, Path]] = [
         "sky-v1-omni 生态 13 个 GitHub 仓库索引简介",
         _HERE / "github_repos_overview.md",
     ),
+    (
+        "chinese_llm_landscape",
+        "chinese_llm_landscape",
+        "2026 国内外主流大模型差异化优势（豆包/文心/Qwen/混元/盘古/星火/DeepSeek/Kimi/…）",
+        _HERE / "chinese_llm_landscape.md",
+    ),
 ]
 
 __all__ = ["PRESET_DOCS"]

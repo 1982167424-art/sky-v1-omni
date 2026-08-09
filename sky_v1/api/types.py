@@ -298,3 +298,48 @@ class MetricsResponse(BaseModel):
     errors_total: int = 0
     avg_latency_ms: float = 0.0
     components: dict[str, Any] = {}
+
+
+# ---------------------------------------------------------------------------
+# 搜索 / 深度推理
+# ---------------------------------------------------------------------------
+class WebSearchRequest(BaseModel):
+    model_config = _PYDANTIC_CONFIG
+    query: str
+    num_results: int = Field(default=5, ge=1, le=20)
+    freshness: Literal["any", "day", "week", "month"] = "any"
+    skip_cache: bool = False
+
+
+class WebSearchResult(BaseModel):
+    model_config = _PYDANTIC_CONFIG
+    title: str = ""
+    url: str = ""
+    snippet: str = ""
+
+
+class WebSearchResponse(BaseModel):
+    model_config = _PYDANTIC_CONFIG
+    results: list[WebSearchResult]
+    provider: str
+    cached: bool
+    simulated: bool
+    latency_ms: int
+
+
+class DeepReasoningRequest(BaseModel):
+    model_config = _PYDANTIC_CONFIG
+    question: str
+    max_iterations: int = Field(default=3, ge=1, le=6)
+    enable_web_search: bool = True
+    citations_needed: bool = True
+
+
+class DeepReasoningResponse(BaseModel):
+    model_config = _PYDANTIC_CONFIG
+    plan: list[str]
+    iterations: list[dict[str, Any]]
+    final_answer: str
+    confidence: float
+    simulated: bool
+    latency_ms: int

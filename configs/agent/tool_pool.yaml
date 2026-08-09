@@ -46,3 +46,17 @@ tools:
   tool_3d_nerf:
     enabled: true
     provider: "simulated"
+  tool_web_search:
+    enabled: true
+    provider: "auto"
+    serpapi_key_env: "SERPAPI_API_KEY"
+    tavily_key_env: "TAVILY_API_KEY"
+    num_results: 5
+    cache_ttl_s: 43200
+    cache_capacity: 512
+    timeout_s: 3.0
+  tool_deep_reasoning:
+    enabled: true
+    max_iterations: 3
+    enable_web_search: true
+    citations_needed: true
