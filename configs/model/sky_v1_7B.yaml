@@ -1,0 +1,8 @@
+_base_: ["./sky_v1_1B.yaml"]
+model:
+  name: sky-v1-7B
+  hidden_size: 4096
+  num_hidden_layers: 32
+  num_attention_heads: 32
+  intermediate_size: 11008
+  max_position_embeddings: 8192

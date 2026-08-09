@@ -1,0 +1,24 @@
+training:
+  phase: phase3
+  learning_rate: 5.0e-5
+  weight_decay: 0.01
+  max_grad_norm: 1.0
+  batch_size: 2
+  max_steps: 3000
+  log_every: 10
+  save_every: 100
+  output_dir: outputs/phase3
+  vocab_size: 128000
+teachers:
+  names: ["claude_opus_4_8", "gpt_5_6_sol", "kimi_k3", "mimo_v2_5", "qwen_3_8"]
+  weights: [1.2, 1.3, 1.4, 1.2, 1.0]
+  temperature: 2.0
+dpo:
+  beta: 0.1
+  weight: 0.01
+data:
+  source: toy
+  n_samples: 100
+  seed: 42
+  max_seq_len: 512
+model_config: configs/model/sky_v1_1B.yaml

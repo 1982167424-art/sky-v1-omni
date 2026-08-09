@@ -1,0 +1,25 @@
+model:
+  name: sky-v1-1B
+  hidden_size: 2048
+  num_hidden_layers: 16
+  num_attention_heads: 16
+  intermediate_size: 5460
+  vocab_size: 128000
+  max_position_embeddings: 8192
+  rms_norm_eps: 1.0e-6
+  attention_dropout: 0.0
+  hidden_act: swiglu
+  rope_theta: 10000.0
+  modal_types: ["text", "image", "audio", "video", "three_d"]
+  modal:
+    text: { vocab_size: 128000, modal_dim: 2048, modal_id: 0 }
+    image: { patch_size: 16, image_size: 224, in_channels: 3, modal_id: 1 }
+    audio: { mel_bins: 128, subsample: 4, modal_id: 2 }
+    video: { num_frames: 8, patch_size: 16, frame_size: 224, modal_id: 3 }
+    three_d: { num_points: 8192, point_dim: 6, mesh_vertices: 2048, modal_id: 4 }
+  heads:
+    text: { vocab_size: 128000 }
+    image: { out_channels: 3, patch_size: 16 }
+    audio: { mel_bins: 128 }
+    video: { num_frames: 8, out_channels: 3, patch_size: 16 }
+    three_d: { num_points: 8192, point_dim: 3, mesh_vertices: 2048 }

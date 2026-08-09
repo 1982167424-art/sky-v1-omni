@@ -1,0 +1,111 @@
+from __future__ import annotations
+from pathlib import Path
+from typing import Any, Optional
+from pydantic import BaseModel, Field, ConfigDict, ValidationError
+
+class ModalConfig(BaseModel):
+    vocab_size: int = 128000
+    modal_dim: int = 2048
+    modal_id: int = 0
+    patch_size: int = 16
+    image_size: int = 224
+    in_channels: int = 3
+    mel_bins: int = 128
+    subsample: int = 4
+    num_frames: int = 8
+    frame_size: int = 224
+    num_points: int = 8192
+    point_dim: int = 6
+    mesh_vertices: int = 2048
+
+class HeadsConfig(BaseModel):
+    vocab_size: int = 128000
+    out_channels: int = 3
+    patch_size: int = 16
+    mel_bins: int = 128
+    num_frames: int = 8
+    num_points: int = 8192
+    point_dim: int = 3
+    mesh_vertices: int = 2048
+
+class SkyModelConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str = "sky-v1-1B"
+    hidden_size: int = Field(2048, ge=64)
+    num_hidden_layers: int = Field(1, ge=1, le=128)
+    num_attention_heads: int = Field(8, ge=1)
+    intermediate_size: int = Field(2048, ge=64)
+    vocab_size: int = Field(1000, ge=128)
+    max_position_embeddings: int = Field(512, ge=32)
+    rms_norm_eps: float = 1e-6
+    attention_dropout: float = 0.0
+    hidden_act: str = "swiglu"
+    rope_theta: float = 10000.0
+    modal_types: list[str] = Field(default_factory=lambda: ["text","image","audio","video","three_d"])
+    modal: dict[str, ModalConfig] = Field(default_factory=dict)
+    heads: dict[str, HeadsConfig] = Field(default_factory=dict)
+
+    @property
+    def head_dim(self) -> int:
+        if self.hidden_size % self.num_attention_heads != 0:
+            raise ValueError(f"hidden_size ({self.hidden_size}) must be divisible by num_attention_heads ({self.num_attention_heads})")
+        return self.hidden_size // self.num_attention_heads
+
+def _flatten_yaml(data: Any, base_dir: Path) -> dict:
+    if isinstance(data, dict) and "_base_" in data:
+        bases = data.pop("_base_")
+        merged: dict = {}
+        for b in bases:
+            bp = (base_dir / b).resolve()
+            if bp.exists():
+                import yaml
+                try:
+                    with open(bp, "r", encoding="utf-8") as f:
+                        sub = yaml.safe_load(f) or {}
+                except Exception:
+                    sub = {}
+                sub = _flatten_yaml(sub, bp.parent)
+                merged = _deep_merge(merged, sub)
+        merged = _deep_merge(merged, data)
+        return merged
+    return data if isinstance(data, dict) else {}
+
+def _deep_merge(a: dict, b: dict) -> dict:
+    out = dict(a)
+    for k, v in b.items():
+        if k in out and isinstance(out[k], dict) and isinstance(v, dict):
+            out[k] = _deep_merge(out[k], v)
+        else:
+            out[k] = v
+    return out
+
+def load_config_from_yaml(path: str | Path) -> SkyModelConfig:
+    p = Path(path)
+    if not p.exists():
+        raise FileNotFoundError(f"Config not found: {p}")
+    import yaml
+    with open(p, "r", encoding="utf-8") as f:
+        raw = yaml.safe_load(f) or {}
+    raw = _flatten_yaml(raw, p.parent)
+    model_block = raw.get("model") if isinstance(raw, dict) else None
+    if not isinstance(model_block, dict):
+        raise ValueError(f"YAML must contain top-level 'model' dict key: {p}")
+    modal_raw = model_block.get("modal") or {}
+    modal_out: dict[str, ModalConfig] = {}
+    for k in ("text", "image", "audio", "video", "three_d"):
+        m = modal_raw.get(k) or {}
+        modal_out[k] = ModalConfig(**m) if isinstance(m, dict) else ModalConfig()
+    heads_raw = model_block.get("heads") or {}
+    heads_out: dict[str, HeadsConfig] = {}
+    for k in ("text", "image", "audio", "video", "three_d"):
+        h = heads_raw.get(k) or {}
+        heads_out[k] = HeadsConfig(**h) if isinstance(h, dict) else HeadsConfig()
+    cfg_block = {**model_block, "modal": modal_out, "heads": heads_out}
+    try:
+        return SkyModelConfig(**cfg_block)
+    except ValidationError as e:
+        raise ValueError(f"Invalid model config at {p}: {e}") from e
+
+def build_model_from_config(cfg: SkyModelConfig):
+    from .sky_model import SkyModel
+    return SkyModel(cfg)
