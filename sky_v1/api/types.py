@@ -303,12 +303,32 @@ class MetricsResponse(BaseModel):
 # ---------------------------------------------------------------------------
 # 搜索 / 深度推理
 # ---------------------------------------------------------------------------
+_SEARCH_PROVIDER_LITERAL = Literal["google", "baidu", "bing", "toutiao", "tavily"]
+
+
+class WebSearchProviderStatus(BaseModel):
+    model_config = _PYDANTIC_CONFIG
+    provider: str
+    available: bool
+    reason: str = ""
+    count: int = 0
+    latency_ms: int = 0
+
+
 class WebSearchRequest(BaseModel):
     model_config = _PYDANTIC_CONFIG
     query: str
     num_results: int = Field(default=5, ge=1, le=20)
+    providers: list[_SEARCH_PROVIDER_LITERAL] = Field(
+        default_factory=lambda: ["google", "baidu", "bing", "toutiao"],
+        description="指定 Provider 白名单（Google/百度/Bing/今日头条 并发默认全开）",
+    )
     freshness: Literal["any", "day", "week", "month"] = "any"
     skip_cache: bool = False
+    allow_simulated: bool = Field(
+        default=False,
+        description="开发模式：真实搜索全部失败时是否允许返回模拟结果（默认 False）",
+    )
 
 
 class WebSearchResult(BaseModel):
@@ -316,12 +336,16 @@ class WebSearchResult(BaseModel):
     title: str = ""
     url: str = ""
     snippet: str = ""
+    provider: str = ""
 
 
 class WebSearchResponse(BaseModel):
     model_config = _PYDANTIC_CONFIG
     results: list[WebSearchResult]
     provider: str
+    providers_used: list[str]
+    provider_statuses: list[WebSearchProviderStatus]
+    status: Literal["OK", "PARTIAL", "EMPTY", "FAILED"]
     cached: bool
     simulated: bool
     latency_ms: int

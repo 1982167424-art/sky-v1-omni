@@ -142,13 +142,33 @@ def cmd_search(
     query: str = typer.Argument(..., help="搜索关键词"),
     num: int = typer.Option(5, "--num", "-n", min=1, max=20, help="返回条数"),
     no_cache: bool = typer.Option(False, "--no-cache", help="跳过缓存"),
+    providers: str = typer.Option(
+        "google,baidu,bing,toutiao",
+        "--providers",
+        "-p",
+        help="引擎白名单，逗号分隔：google/baidu/bing/toutiao/tavily",
+    ),
+    allow_simulated: bool = typer.Option(
+        False,
+        "--allow-simulated",
+        help="[开发模式] 真实引擎全失败时允许返回模拟结果",
+    ),
 ) -> None:
-    """毫秒级联网搜索（多 Provider + TTL/LRU 缓存）。"""
+    """毫秒级联网搜索（Google/百度/Bing/今日头条 并发 + TTL/LRU 缓存）。"""
     from ..agent.base import ToolContext
     from ..agent.tools.search_tools import WebSearchTool
+
+    provider_list = [p.strip() for p in providers.split(",") if p.strip()]
     tool = WebSearchTool()
     ctx = ToolContext(session_id="cli-search")
-    res = tool.run(ctx, query=query, num_results=num, skip_cache=no_cache)
+    res = tool.run(
+        ctx,
+        query=query,
+        num_results=num,
+        providers=provider_list if provider_list else None,
+        skip_cache=no_cache,
+        allow_simulated=allow_simulated,
+    )
     typer.echo(res.output)
 
 

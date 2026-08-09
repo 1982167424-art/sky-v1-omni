@@ -13,13 +13,13 @@
 | 能力 | 模块 | 状态 | 说明 |
 |------|------|:----:|------|
 | 🤖 5 模态 Agent 编排 | `sky_v1.agent` (M1) | ✅ | **14 专家工具** + 启发式路由 + STM/LTM 记忆 + 幻觉反思 |
-| 📚 RAG 检索增强知识库 | `sky_v1.rag` (M1) | ✅ | **9 篇预置文档**（含国内外大模型差异化优势选型表）+ InMemory/Chroma 双后端 + Reranker + HyDE |
+| 📚 RAG 检索增强知识库 | `sky_v1.rag` (M1) | ✅ | **10+ 预置文档**（含 **16 家国产大模型 + 3 家国外模型系列** 差异化优势选型表，覆盖豆包/文心/通义千问/混元/盘古/星火/MiMo/DeepSeek/Kimi/MiniMax/百川/阶跃星辰/商汤/美团LongCat/快手可灵/京东JoyAI/GPT-4.5/Claude 3.7/Gemini 2.0 Ultra/Sora Turbo）+ InMemory/Chroma 双后端 + Reranker + HyDE |
 | 🌐 OpenAI 兼容 API | `sky_v1.api` (M1/M4) | ✅ | `/v1/chat/completions` 等端点 + **/v1/search/web + /v1/reasoning/deep**，Engine 与 Agent 双路径 |
 | 🧠 UniTransformer 五模态骨干 | `sky_v1.model` (M2) | ✅ | RMSNorm + RoPE + SwiGLU + 5 Tokenizer / 5 Head + 模态类型嵌入 |
 | 🏋️ 三阶段训练框架 | `sky_v1.training` (M3) | ✅ | Phase1 warmup / Phase2 align (SFT+InfoNCE) / Phase3 distill (KD3+DPO) + Checkpoint |
 | ⚡ 推理引擎 | `sky_v1.inference` (M4) | ✅ | SkyInferenceEngine + PagedKVCache + W8A8/W4A16 量化 + LoRA 热切换 |
 | 🔌 SDK + CLI | `sky_v1.sdk` / `sky_v1.cli` (M4/M5) | ✅ | OpenAI 兼容 SDK + Typer CLI（**chat/embed/serve/train/rag + search/think**）|
-| 🔎 毫秒级联网搜索 | `sky_v1.agent.tools.WebSearchTool` (M5+) | ✅ | SerpAPI > Tavily > DuckDuckGo HTML **三级 Provider** + **TTL/LRU 缓存（热查询 <50ms）**，零依赖时模拟兜底 |
+| 🔎 毫秒级联网搜索 | `sky_v1.agent.tools.WebSearchTool` (M5+) | ✅ | **Google / 百度 / Bing / 今日头条** 4 大引擎并发 + API+HTML 双通道 + **TTL/LRU 缓存（热查询 <50ms）** + **并发总超时快速失败**；严格区分 OK/PARTIAL/EMPTY/FAILED 四种状态，默认不伪造模拟结果（显式 `allow_simulated` 才启用） |
 | 🧩 深度多步推理 | `sky_v1.agent.tools.DeepReasoningTool` (M5+) | ✅ | **Plan-Act-Observe-Reflect** Tree-of-Thoughts + 自我反思纠错 + 置信度 + 可选搜索验算 |
 | 📊 Benchmark 评估 | `sky_v1.eval` (M5) | ✅ | MMLU 5-shot / HumanEval pass@1 / 推理吞吐，结果可存取 |
 | 👨‍🏫 5 老师蒸馏 | `sky_v1.training.teacher_client` (M5) | ✅ | Claude/GPT/Kimi/MiMo/Qwen API + Qwen72B 本地 fallback |
@@ -100,6 +100,52 @@ curl -s http://localhost:8000/v1/rag/query \
   -H 'Content-Type: application/json' \
   -d '{"query":"Whisper 语音识别","top_k":3}'
 ```
+
+---
+
+## 🔎 联网搜索：Key 与环境变量
+
+> **生产推荐**：配置 1~2 个 API Key 可把命中率提升至 98%+；不配置时仍可使用 4 引擎 HTML 抓取（无需 Key），但被站点反爬时会按 `PARTIAL/FAILED` 结构化告知失败原因（**默认不伪造模拟结果**，加 `allow_simulated=true` 才回退到开发模式摘要）。
+
+| Provider | 方式 | 环境变量 | 说明 |
+|----------|------|----------|------|
+| **Google** | API（推荐） | `SERPAPI_API_KEY` | SerpAPI 代查 Google 结果，稳定性最佳 |
+| **Google** | 官方 JSON API | `GOOGLE_SEARCH_API_KEY` + `GOOGLE_SEARCH_CX` | Programmable Search Engine，免费额度 100 次/天 |
+| **Google** | HTML 抓取 | 无需 Key | `https://www.google.com/search` 直扒，零依赖兜底 |
+| **百度** | HTML 抓取 | 无需 Key | `https://www.baidu.com/s` 直扒，中文首选 |
+| **Bing** | 认知服务 API | `BING_SEARCH_API_KEY` | Azure 官方 Bing Search v7.0，数据质量最稳 |
+| **Bing** | HTML 抓取 | 无需 Key | `https://www.bing.com/search` 直扒兜底 |
+| **今日头条** | HTML 抓取 | 无需 Key | `https://so.toutiao.com/search`，资讯/短视频/新闻优势 |
+| Tavily | API（辅助） | `TAVILY_API_KEY` | RAG 友好型搜索，国外资料更稳 |
+
+### CLI 用法示例
+```bash
+# 默认并发 4 引擎：Google + 百度 + Bing + 今日头条
+sky search "通义千问 Qwen3.8-Max 发布数据"
+
+# 只跑国内引擎（百度 + 今日头条）
+sky search "2026 最新短剧爆款" -p baidu,toutiao
+
+# 显式允许开发模式模拟结果（真实引擎全挂时用）
+sky search "某个冷僻关键词" --allow-simulated
+```
+
+### API 用法示例
+```bash
+curl -s http://localhost:8000/v1/search/web \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "query": "豆包 2026 日均 Token 调用量",
+    "providers": ["google","baidu","toutiao"],
+    "num_results": 5,
+    "allow_simulated": false
+  }' | python -m json.tool
+```
+
+返回 JSON 包含：
+* `status`: `OK / PARTIAL / EMPTY / FAILED`（严格区分空结果与网络异常）
+* `provider_statuses[]`: 每个引擎的可用状态、命中条数、延迟 ms、失败原因
+* `results[].provider`: 每条结果来自哪个引擎
 
 ---
 

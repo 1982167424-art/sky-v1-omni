@@ -10,6 +10,7 @@ from fastapi import APIRouter, Request
 from sky_v1.api.types import (
     DeepReasoningRequest,
     DeepReasoningResponse,
+    WebSearchProviderStatus,
     WebSearchRequest,
     WebSearchResponse,
     WebSearchResult,
@@ -54,30 +55,57 @@ async def search_web(
         return WebSearchResponse(
             results=[],
             provider="unavailable",
+            providers_used=[],
+            provider_statuses=[
+                WebSearchProviderStatus(provider="unavailable", available=False, reason="TOOL_LOAD_FAILED", count=0, latency_ms=0)
+            ],
+            status="FAILED",
             cached=False,
-            simulated=True,
+            simulated=False,
             latency_ms=0,
         )
     res = tool.run(
         ctx,
         query=body.query,
         num_results=body.num_results,
+        providers=list(body.providers) if body.providers else None,
         freshness=body.freshness,
         skip_cache=body.skip_cache,
+        allow_simulated=body.allow_simulated,
     )
     data = res.data or {}
     raw_results = data.get("results") or []
-    results = []
+    results: list[WebSearchResult] = []
     for r in raw_results:
         if isinstance(r, dict):
             results.append(WebSearchResult(
                 title=str(r.get("title", ""))[:300],
                 url=str(r.get("url", ""))[:500],
                 snippet=str(r.get("snippet", ""))[:800],
+                provider=str(r.get("provider", ""))[:32],
             ))
+    providers_used: list[str] = list(data.get("providers_used", []) or [])
+    status_raw = str(data.get("status", "EMPTY"))
+    if status_raw not in {"OK", "PARTIAL", "EMPTY", "FAILED"}:
+        status_raw = "PARTIAL" if providers_used and results else "EMPTY"
+    status_val: Literal["OK", "PARTIAL", "EMPTY", "FAILED"] = status_raw  # type: ignore[assignment]
+    provider_statuses: list[WebSearchProviderStatus] = []
+    for row in (data.get("provider_statuses") or []):
+        if isinstance(row, dict):
+            provider_statuses.append(WebSearchProviderStatus(
+                provider=str(row.get("provider", "unknown")),
+                available=bool(row.get("available", False)),
+                reason=str(row.get("reason", "")),
+                count=int(row.get("count", 0) or 0),
+                latency_ms=int(row.get("latency_ms", 0) or 0),
+            ))
+    primary = providers_used[0] if providers_used else (data.get("provider") or "unknown")
     return WebSearchResponse(
         results=results,
-        provider=str(data.get("provider", "unknown")),
+        provider=str(primary),
+        providers_used=providers_used,
+        provider_statuses=provider_statuses,
+        status=status_val,
         cached=bool(data.get("cached", False)),
         simulated=bool(data.get("simulated", not res.success)),
         latency_ms=int(getattr(res, "latency_ms", 0) or 0),
