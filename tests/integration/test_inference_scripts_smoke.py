@@ -2,6 +2,10 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
+pytest.importorskip("torch")  # 推理脚本通过 subprocess 运行，需要 torch
+
 ROOT = Path(__file__).resolve().parents[2]
 
 def _run(script_module, *args):

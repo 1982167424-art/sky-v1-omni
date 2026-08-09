@@ -10,6 +10,10 @@ import sys
 import tempfile
 from pathlib import Path
 
+import pytest
+
+pytest.importorskip("torch")  # 训练脚本通过 subprocess 运行，需要 torch
+
 ROOT = Path(__file__).resolve().parents[2]
 
 # 内存安全的 toy 模型配置（mel_bins=128 与 ToyDataGenerator 默认一致）

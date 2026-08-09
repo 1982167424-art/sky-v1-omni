@@ -18,6 +18,10 @@ import sys
 import tempfile
 from pathlib import Path
 
+import pytest
+
+pytest.importorskip("torch")  # 脚本通过 subprocess 运行，需要 torch
+
 ROOT = Path(__file__).resolve().parents[2]
 
 # 内存安全的 toy 模型配置（与 test_training_scripts_smoke 保持一致）。
